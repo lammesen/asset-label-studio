@@ -60,6 +60,10 @@ export async function createAsset(
     })
     .returning();
 
+  if (!row) {
+    throw new Error("Failed to create asset");
+  }
+
   await createAuditLog(ctx, {
     action: AUDIT_ACTIONS.ASSET_CREATED,
     resourceType: "asset",

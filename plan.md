@@ -111,25 +111,234 @@ A multi-tenant asset management toolkit for delivery network equipment. Create, 
 
 ---
 
-### Phase 3: Print System 🔲 NOT STARTED
+### Phase 3: Print System ✅ COMPLETE
 
 | Task | Status | Priority | Notes |
 |------|--------|----------|-------|
-| PDF renderer (Tier-1) | 🔲 | High | jsPDF integration |
-| Print job queue | 🔲 | High | Job management service |
-| Multi-format support | 🔲 | Medium | Avery, DYMO, Brother, Zebra |
-| Batch printing | 🔲 | Medium | Multiple assets per job |
-| Print preview | 🔲 | Medium | Before-print confirmation |
-| Print history | 🔲 | Low | Audit trail for prints |
+| PDF renderer (Tier-1) | ✅ | High | jsPDF + QRCode + JsBarcode |
+| Print job queue | ✅ | High | `src/services/print-service.ts` |
+| Multi-format support | ✅ | Medium | Avery, DYMO, Brother, Custom |
+| Batch printing | ✅ | Medium | Multiple assets per job |
+| Print preview | ✅ | Medium | Preview API endpoint |
+| Print history | ✅ | Low | `src/components/labels/print-history.tsx` |
 
-**Technical Notes:**
+**Files Created:**
+- `src/types/print.ts` - Print types (PrintJob, PrintJobItem, PrintOptions)
+- `src/lib/print-utils.ts` - Unit conversions, layout helpers
+- `src/services/label-renderer.ts` - LabelSpec + Asset → PDF rendering
+- `src/services/print-service.ts` - Print job CRUD with tenant isolation
+- `src/api/routes/print.ts` - Print API endpoints
+- `src/hooks/use-print.ts` - React state management hook
+- `src/components/labels/print-dialog.tsx` - Print dialog UI
+- `src/components/labels/print-history.tsx` - Print history UI
+
+**Technical Implementation:**
 - Convert positions to PDF points: `72pt = 1in`, `1mm ≈ 2.83465pt`
-- Keep `dpi` for raster elements only (images, QR, barcode when not vector)
-- Use QRCode and JsBarcode libraries for actual rendering
+- QRCode and JsBarcode for barcode rendering
+- jsPDF for PDF generation
+- Sheet layouts for Avery multi-label formats
+
+**Critical Fixes Applied (from Oracle review):**
+
+1. **Asset Query Optimization** - Fixed N+1 query in `print-service.ts`:
+   - Changed from loading all tenant assets to `WHERE id IN (...)` with `inArray()`
+   - Prevents loading entire asset table for every print job
+
+2. **Rate Limiting** - Added rate limits to print endpoints in `src/index.ts`:
+   - `PRINT_JOB_RATE_LIMIT`: 10 jobs/min (create)
+   - `PRINT_RENDER_RATE_LIMIT`: 5 renders/min (render PDF)
+   - `PRINT_PREVIEW_RATE_LIMIT`: 20 previews/min (preview)
+
+3. **RLS Policies** - Created `src/db/migrations/0002_print_rls_policies.sql`:
+   - `print_jobs` and `print_job_items` tables protected by tenant isolation
+   - Same pattern as other tenant-scoped tables
+
+4. **Server-Side Barcode Rendering** - Fixed in `label-renderer.ts`:
+   - Replaced `OffscreenCanvas` with SVG string generation
+   - Works in server-side Bun environment without DOM
+
+5. **Copies Support** - Implemented in `label-renderer.ts`:
+   - `options.copies` expands assets array before rendering
+   - Capped at 100 copies max for safety
+
+6. **Cancellation Check** - Added in `print-service.ts`:
+   - Re-checks job status after render completes
+   - Discards result if job was cancelled during processing
+
+7. **QR/Barcode Caching** - Added in `label-renderer.ts`:
+   - Per-render cache for QR codes and barcodes keyed by value + style
+   - Avoids regenerating identical codes when printing copies or shared values
 
 ---
 
-### Phase 4: Advanced Features 🔲 NOT STARTED
+### Phase 4: Advanced Features ✅ COMPLETE
+
+| Task | Status | Priority | Notes |
+|------|--------|----------|-------|
+| New permissions | ✅ | High | integration:manage, import:execute, export:read, webhook:manage, print:agent |
+| API Keys infrastructure | ✅ | High | Create, revoke, validate with scoped permissions |
+| Background Jobs framework | ✅ | High | DB-backed queue with FOR UPDATE SKIP LOCKED |
+| Public API v1 | ✅ | High | API key auth, versioned endpoints |
+| Webhooks | ✅ | High | Subscriptions, outbox, deliveries, SSRF protection |
+| Import/Export | ✅ | High | CSV/Excel parsing, mapping templates, progress tracking |
+| Local Print Agent (Tier-2) | ✅ | Medium | Agent registration, printer discovery, dispatch tracking |
+| Cloud Print (Tier-3) | ✅ | Medium | Provider config, routing rules |
+
+**Files Created:**
+- `src/types/api-key.ts` - API key types
+- `src/types/background-job.ts` - Job queue types
+- `src/types/webhook.ts` - Webhook types with event types
+- `src/types/import-export.ts` - Import/export types with field mapping
+- `src/types/print-agent.ts` - Print agent and dispatch types
+- `src/services/api-key-service.ts` - API key CRUD and validation
+- `src/services/job-service.ts` - Background job queue management
+- `src/services/webhook-service.ts` - Webhook subscriptions and delivery
+- `src/services/import-service.ts` - CSV/Excel import processing
+- `src/services/export-service.ts` - Asset export to CSV/Excel
+- `src/services/print-agent-service.ts` - Print agent management
+- `src/api/middleware/api-key.ts` - API key authentication middleware
+- `src/api/routes/integrations.ts` - API key management routes
+- `src/api/routes/webhooks.ts` - Webhook management routes
+- `src/api/routes/imports.ts` - Import/export routes
+- `src/db/migrations/0003_phase4_rls_policies.sql` - RLS for all Phase 4 tables
+
+**Database Tables Added:**
+- `api_keys` - API key storage with hashed keys
+- `background_jobs` - Job queue with status tracking
+- `webhook_subscriptions` - Webhook endpoint configs
+- `webhook_outbox` - Pending/delivered events
+- `webhook_deliveries` - Delivery attempt logs
+- `import_templates` - Field mapping presets
+- `import_jobs` - Import job tracking
+- `import_job_errors` - Per-row error logging
+- `export_jobs` - Export job tracking
+- `print_agents` - Registered print agents
+- `print_agent_printers` - Discovered printers
+- `print_dispatches` - Agent print job tracking
+- `cloud_print_providers` - Cloud print configs
+- `print_routes` - Print routing rules
+
+**Security Features:**
+- SSRF protection for webhooks (blocks private IPs, requires HTTPS)
+- API key hashing with SHA-256
+- Webhook signature verification (HMAC-SHA256)
+- Scoped permissions per API key
+- RLS policies on all new tables
+
+---
+
+### P0 Hardening (Production Blockers) ✅ COMPLETE
+
+Oracle identified critical production blockers. All have been addressed:
+
+| Issue | Status | Fix Applied |
+|-------|--------|-------------|
+| RLS not enforced on all tables | ✅ | `0004_force_rls.sql` - `FORCE ROW LEVEL SECURITY` on all 22 tables |
+| API key lookup bypasses RLS | ✅ | `0005_api_key_lookup.sql` - SECURITY DEFINER function for pre-tenant lookup |
+| In-memory rate limiting not distributed | ✅ | `0006_rate_limits.sql` - DB-backed rate limiting table |
+| Refresh token missing tenantId | ✅ | Added `tid` to RefreshTokenPayload, updated auth flow |
+| Session validation not tenant-scoped | ✅ | `getSessionInfo(sessionId, tenantId)` with `withTenant()` |
+| Job queue race conditions | ✅ | `acquireJob`, `completeJob`, `failJob` use `withTenant()` |
+| Webhook SSRF vulnerability | ✅ | `src/lib/ssrf.ts` - DNS resolution + IP range validation |
+| Webhook delivery DNS rebinding | ✅ | Re-validate URL at delivery time |
+
+**Migrations Created:**
+- `src/db/migrations/0004_force_rls.sql` - Force RLS on all tables with safe UUID fallback
+- `src/db/migrations/0005_api_key_lookup.sql` - SECURITY DEFINER API key lookup function
+- `src/db/migrations/0006_rate_limits.sql` - Rate limits table for distributed deployments
+
+**Files Created:**
+- `src/lib/ssrf.ts` - Comprehensive SSRF protection (blocks private IPs, metadata endpoints, validates before fetch)
+
+**Files Updated:**
+- `src/types/user.ts` - Added `tid` to RefreshTokenPayload
+- `src/lib/auth.ts` - tenantId in refresh token creation/verification
+- `src/services/auth-service.ts` - `getSessionInfo(sessionId, tenantId)` with `withTenant()`
+- `src/api/middleware/auth.ts` - Pass tenantId to session validation
+- `src/api/middleware/permissions.ts` - Pass tenantId to session validation
+- `src/api/middleware/rate-limit.ts` - DB-backed `checkRateLimitDb()`
+- `src/services/job-service.ts` - All job operations use `withTenant()`
+- `src/services/api-key-service.ts` - Uses SECURITY DEFINER lookup function
+- `src/services/webhook-service.ts` - SSRF validation, tenant-scoped processing
+
+---
+
+### P1 Security Improvements ✅ COMPLETE
+
+| Issue | Status | Fix Applied |
+|-------|--------|-------------|
+| AES-GCM IV length (16→12 bytes) | ✅ | `webhook-service.ts` - IV_LENGTH now 12 (NIST recommended) |
+| Duplicate auth middleware | ✅ | Removed Request overload from `permissions.ts`, refactored `print.ts` and `templates.ts` to use `withAuth(requirePermission(...))` |
+| Refresh token reuse detection | ✅ | Mark consumed tokens, detect reuse and invalidate all sessions, audit log `TOKEN_REUSE_DETECTED` |
+| Job reaper for stuck jobs | ✅ | `reapStuckJobs()` and `reapStuckJobsAllTenants()` in `job-service.ts` |
+
+**Files Updated:**
+- `src/services/webhook-service.ts` - IV_LENGTH = 12 (was 16)
+- `src/api/middleware/permissions.ts` - Simplified to handler-wrapper only
+- `src/api/routes/print.ts` - Refactored to use `withAuth(requirePermission(...))` pattern
+- `src/api/routes/templates.ts` - Refactored to use `withAuth(requirePermission(...))` pattern
+- `src/services/auth-service.ts` - Token reuse detection with `CONSUMED:` prefix, `handleTokenReuse()` function
+- `src/services/job-service.ts` - Added `reapStuckJobs()` and `reapStuckJobsAllTenants()`
+- `src/types/audit.ts` - Added `TOKEN_REUSE_DETECTED` audit action
+
+---
+
+### Security Hardening Round 2 (Oracle Review) ✅ COMPLETE
+
+A second Oracle security review identified additional production issues across all priority levels. All have been addressed:
+
+#### P0 - Critical (Production Blockers)
+
+| Issue | Status | Fix Applied |
+|-------|--------|-------------|
+| CSRF Protection Missing | ✅ | `src/api/middleware/csrf.ts` - Origin/Referer validation on state-changing routes |
+| Rate Limit Table Not Tenant-Scoped | ✅ | `0007_rate_limits_hardening.sql` - Added tenant_id, RLS, improved cleanup |
+| CSV/Excel Formula Injection | ✅ | `export-service.ts` - `sanitizeForSpreadsheet()` prefixes dangerous chars with `'` |
+
+#### P1 - High Priority
+
+| Issue | Status | Fix Applied |
+|-------|--------|-------------|
+| Refresh Token Race Condition | ✅ | Atomic UPDATE with conditional WHERE clause in `refreshSession()` |
+| User Enumeration in Audit Logs | ✅ | Single "invalid_credentials" reason for user_not_found and invalid_password |
+| Rate Limiting Gaps | ✅ | Added `IMPORT_RATE_LIMIT`, `EXPORT_RATE_LIMIT`, `WEBHOOK_RATE_LIMIT` |
+
+#### P2 - Medium Priority
+
+| Issue | Status | Fix Applied |
+|-------|--------|-------------|
+| Permission String Literals | ✅ | `print.ts` and `templates.ts` use `PERMISSIONS.PRINT_EXECUTE`, etc. |
+| Refresh Cookie Path Too Broad | ✅ | Changed from `/api/auth` to `/api/auth/refresh` in `auth.ts` |
+| Distinguishable Auth Errors | ✅ | Single `{ error: "Unauthorized" }` for all auth failures |
+| Import Mapping Path Validation | ✅ | `ALLOWED_ASSET_FIELDS` set with `isValidFieldPath()` validation |
+
+#### P3 - Low Priority
+
+| Issue | Status | Fix Applied |
+|-------|--------|-------------|
+| Security Headers Missing | ✅ | HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy |
+| Request ID for Tracing | ✅ | `generateRequestId()` with `X-Request-Id` header on all responses |
+
+**Migrations Created:**
+- `src/db/migrations/0007_rate_limits_hardening.sql` - Tenant-scoped rate limits with RLS
+
+**Files Created:**
+- `src/api/middleware/csrf.ts` - CSRF protection with Origin/Referer validation
+
+**Files Updated:**
+- `src/index.ts` - CSRF on routes, security headers, request ID, rate limits for imports/exports/webhooks
+- `src/api/middleware/auth.ts` - Single "Unauthorized" error for all auth failures
+- `src/api/middleware/rate-limit.ts` - Added IMPORT/EXPORT/WEBHOOK rate limit constants
+- `src/api/routes/print.ts` - Uses PERMISSIONS constants
+- `src/api/routes/templates.ts` - Uses PERMISSIONS constants
+- `src/services/auth-service.ts` - Atomic refresh token rotation, "invalid_credentials" audit
+- `src/services/export-service.ts` - Formula injection protection
+- `src/services/import-service.ts` - Path validation against allowed fields whitelist
+- `src/lib/auth.ts` - Scoped refresh cookie to `/api/auth/refresh`
+
+---
+
+### Phase 5: Future Considerations 🔲 NOT STARTED
 
 | Task | Status | Priority | Notes |
 |------|--------|----------|-------|
@@ -219,6 +428,41 @@ tenants
 - `POST /api/templates/:id/duplicate` - Duplicate template
 - `GET /api/templates/:id/versions/:version` - Get specific version
 - `POST /api/templates/:id/versions/:version/revert` - Revert to version
+
+### Print
+- `POST /api/print/jobs` - Create print job
+- `GET /api/print/jobs` - List print jobs (with filters)
+- `GET /api/print/jobs/:id` - Get print job status
+- `POST /api/print/jobs/:id/render` - Render print job to PDF
+- `DELETE /api/print/jobs/:id` - Cancel print job
+- `GET /api/print/preview/:templateId/:assetId` - Preview single label
+
+### Integrations (API Keys)
+- `GET /api/integrations/api-keys` - List API keys
+- `POST /api/integrations/api-keys` - Create API key (returns secret once)
+- `GET /api/integrations/api-keys/:id` - Get API key details
+- `PUT /api/integrations/api-keys/:id` - Update API key
+- `DELETE /api/integrations/api-keys/:id` - Revoke API key
+
+### Webhooks
+- `GET /api/webhooks/subscriptions` - List webhook subscriptions
+- `POST /api/webhooks/subscriptions` - Create subscription
+- `GET /api/webhooks/subscriptions/:id` - Get subscription
+- `PUT /api/webhooks/subscriptions/:id` - Update subscription
+- `DELETE /api/webhooks/subscriptions/:id` - Delete subscription
+- `GET /api/webhooks/outbox` - List outbox entries
+- `GET /api/webhooks/outbox/:id/deliveries` - Get delivery attempts
+- `POST /api/webhooks/outbox/:id/retry` - Retry dead letter
+
+### Import/Export
+- `GET /api/imports` - List import jobs
+- `POST /api/imports` - Create import job (multipart file upload)
+- `GET /api/imports/:id` - Get import job status
+- `GET /api/imports/:id/errors` - Get import errors
+- `GET /api/import-templates` - List import templates
+- `POST /api/import-templates` - Create import template
+- `DELETE /api/import-templates/:id` - Delete import template
+- `GET /api/exports/assets` - Export assets (CSV/XLSX download)
 
 ---
 

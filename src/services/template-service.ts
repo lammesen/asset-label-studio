@@ -12,8 +12,12 @@ import type {
   TemplateWithHistory,
 } from "@/types/template";
 import type { LabelSpec } from "@/types/label-spec";
+import { labelSpecSchema } from "@/lib/validations";
 
 function mapTemplateRow(row: typeof labelTemplates.$inferSelect): LabelTemplate {
+  const specResult = labelSpecSchema.safeParse(row.spec);
+  const validSpec = specResult.success ? specResult.data : row.spec;
+  
   return {
     id: row.id,
     tenantId: row.tenantId,
@@ -21,7 +25,7 @@ function mapTemplateRow(row: typeof labelTemplates.$inferSelect): LabelTemplate 
     description: row.description,
     category: row.category as LabelTemplate["category"],
     format: row.format as LabelTemplate["format"],
-    spec: row.spec as LabelSpec,
+    spec: validSpec as LabelSpec,
     version: row.version,
     isPublished: row.isPublished,
     publishedAt: row.publishedAt,
@@ -72,6 +76,10 @@ export async function createTemplate(
         createdBy: ctx.userId,
       })
       .returning();
+
+    if (!template) {
+      throw new Error("Failed to create template");
+    }
 
     await tx.insert(templateVersions).values({
       tenantId: ctx.tenantId,
@@ -321,6 +329,10 @@ export async function duplicateTemplate(
       })
       .returning();
 
+    if (!newTemplate) {
+      throw new Error("Failed to duplicate template");
+    }
+
     await tx.insert(templateVersions).values({
       tenantId: ctx.tenantId,
       templateId: newTemplate.id,
@@ -385,7 +397,7 @@ export async function listTemplates(
 
     return {
       templates: templates.map(mapTemplateRow),
-      total: countResult.count,
+      total: countResult?.count ?? 0,
       page,
       pageSize,
     };

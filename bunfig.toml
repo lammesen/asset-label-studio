@@ -1,3 +1,25 @@
 [serve.static]
+# Static asset serving (used by the dev server).
 plugins = ["bun-plugin-tailwind"]
 env = "BUN_PUBLIC_*"
+
+[test]
+# Always enable coverage when running `bun test`.
+coverage = true
+
+# Require 90% line-level and function-level coverage.
+coverageThreshold = 0.9
+
+# `coverageDir` is only used by persistent reporters like `lcov`.
+coverageReporter = ["text", "lcov"]
+coverageDir = "coverage"
+
+# Reduce memory usage during test runs.
+smol = true
+
+# Randomize file order and re-run each test file to help catch flakes.
+randomize = true
+rerunEach = 3
+
+# Exclude test files from coverage reports.
+coverageSkipTestFiles = true

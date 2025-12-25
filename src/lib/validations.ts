@@ -22,7 +22,7 @@ export const createAssetSchema = z.object({
   purchaseDate: z.string().datetime().optional(),
   warrantyExpiry: z.string().datetime().optional(),
   notes: z.string().optional(),
-  customFields: z.record(z.unknown()).optional().default({}),
+  customFields: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const updateAssetSchema = z.object({
@@ -39,7 +39,7 @@ export const updateAssetSchema = z.object({
   warrantyExpiry: z.string().datetime().nullable().optional(),
   retiredDate: z.string().datetime().nullable().optional(),
   notes: z.string().nullable().optional(),
-  customFields: z.record(z.unknown()).optional(),
+  customFields: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const assetFiltersSchema = z.object({

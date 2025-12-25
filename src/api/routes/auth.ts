@@ -6,6 +6,7 @@ import {
   getRefreshTokenCookieOptions,
   parseCookies,
   serializeClearCookie,
+  COOKIE_PATHS,
 } from "@/lib/auth";
 import { getTenantBySlug } from "@/lib/tenant";
 import { login, refreshSession, logout, getUserById } from "@/services/auth-service";
@@ -30,8 +31,8 @@ function createAuthCookieHeaders(accessCookie: string, refreshCookie: string): H
 function createClearCookieHeaders(): Headers {
   const headers = new Headers();
   headers.set("Content-Type", "application/json");
-  headers.append("Set-Cookie", serializeClearCookie("access_token", "/"));
-  headers.append("Set-Cookie", serializeClearCookie("refresh_token", "/api/auth"));
+  headers.append("Set-Cookie", serializeClearCookie("access_token", COOKIE_PATHS.ACCESS_TOKEN));
+  headers.append("Set-Cookie", serializeClearCookie("refresh_token", COOKIE_PATHS.REFRESH_TOKEN));
   return headers;
 }
 

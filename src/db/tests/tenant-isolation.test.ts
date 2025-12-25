@@ -20,6 +20,7 @@ describe("Tenant Isolation", () => {
         settings: {},
       })
       .returning();
+    if (!tA) throw new Error("Failed to create tenant A");
     tenantA = tA;
 
     const [tB] = await db
@@ -31,6 +32,7 @@ describe("Tenant Isolation", () => {
         settings: {},
       })
       .returning();
+    if (!tB) throw new Error("Failed to create tenant B");
     tenantB = tB;
 
     const passwordHash = await hashPassword("testpassword");
@@ -45,6 +47,7 @@ describe("Tenant Isolation", () => {
         role: "admin",
       })
       .returning();
+    if (!uA) throw new Error("Failed to create user A");
     userA = uA;
 
     const [uB] = await db
@@ -57,6 +60,7 @@ describe("Tenant Isolation", () => {
         role: "admin",
       })
       .returning();
+    if (!uB) throw new Error("Failed to create user B");
     userB = uB;
   });
 
@@ -76,7 +80,7 @@ describe("Tenant Isolation", () => {
     });
 
     expect(usersInTenantA.length).toBe(1);
-    expect(usersInTenantA[0].email).toBe("user-a@test.local");
+    expect(usersInTenantA[0]?.email).toBe("user-a@test.local");
   });
 
   test("tenant A cannot see tenant B users with proper filtering", async () => {
@@ -146,7 +150,7 @@ describe("Tenant Isolation", () => {
       .where(eq(schema.assets.tenantId, tenantA.id));
 
     expect(tenantAAssets.length).toBe(1);
-    expect(tenantAAssets[0].assetTag).toBe("ASSET-A-001");
+    expect(tenantAAssets[0]?.assetTag).toBe("ASSET-A-001");
 
     const tenantBAssets = await db
       .select()
@@ -154,13 +158,13 @@ describe("Tenant Isolation", () => {
       .where(eq(schema.assets.tenantId, tenantB.id));
 
     expect(tenantBAssets.length).toBe(1);
-    expect(tenantBAssets[0].assetTag).toBe("ASSET-B-001");
+    expect(tenantBAssets[0]?.assetTag).toBe("ASSET-B-001");
 
     const tenantBAssetInA = tenantAAssets.find((a) => a.assetTag === "ASSET-B-001");
     expect(tenantBAssetInA).toBeUndefined();
 
-    await db.delete(schema.assets).where(eq(schema.assets.id, assetA.id));
-    await db.delete(schema.assets).where(eq(schema.assets.id, assetB.id));
+    if (assetA) await db.delete(schema.assets).where(eq(schema.assets.id, assetA.id));
+    if (assetB) await db.delete(schema.assets).where(eq(schema.assets.id, assetB.id));
   });
 
   test("audit logs are properly isolated by tenant", async () => {

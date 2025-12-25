@@ -1,59 +1,44 @@
-interface RateLimitEntry {
-  count: number;
-  resetAt: number;
-}
+import { sql } from "drizzle-orm";
+import { db } from "@/db";
 
-interface RateLimitConfig {
+export interface RateLimitConfig {
   windowMs: number;
   maxRequests: number;
-}
-
-const rateLimitStore = new Map<string, RateLimitEntry>();
-
-const CLEANUP_INTERVAL = 60_000;
-let lastCleanup = Date.now();
-
-function cleanupExpiredEntries(): void {
-  const now = Date.now();
-  if (now - lastCleanup < CLEANUP_INTERVAL) return;
-  
-  lastCleanup = now;
-  for (const [key, entry] of rateLimitStore.entries()) {
-    if (entry.resetAt < now) {
-      rateLimitStore.delete(key);
-    }
-  }
 }
 
 function getClientIdentifier(req: Request): string {
   const forwarded = req.headers.get("x-forwarded-for");
   if (forwarded) {
-    return forwarded.split(",")[0].trim();
+    return forwarded.split(",")[0]?.trim() ?? "unknown";
   }
   return req.headers.get("x-real-ip") ?? "unknown";
 }
 
-export function checkRateLimit(
+export async function checkRateLimitDb(
   key: string,
   config: RateLimitConfig
-): { allowed: boolean; remaining: number; resetAt: number } {
-  cleanupExpiredEntries();
-  
-  const now = Date.now();
-  const entry = rateLimitStore.get(key);
-  
-  if (!entry || entry.resetAt < now) {
-    const resetAt = now + config.windowMs;
-    rateLimitStore.set(key, { count: 1, resetAt });
-    return { allowed: true, remaining: config.maxRequests - 1, resetAt };
-  }
-  
-  if (entry.count >= config.maxRequests) {
-    return { allowed: false, remaining: 0, resetAt: entry.resetAt };
-  }
-  
-  entry.count += 1;
-  return { allowed: true, remaining: config.maxRequests - entry.count, resetAt: entry.resetAt };
+): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
+  const windowSeconds = Math.ceil(config.windowMs / 1000);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const bucket = Math.floor(nowSeconds / windowSeconds);
+  const resetAt = (bucket + 1) * windowSeconds * 1000;
+
+  const result = await db.execute(sql`
+    INSERT INTO rate_limits (key, bucket, count)
+    VALUES (${key}, ${bucket}, 1)
+    ON CONFLICT (key, bucket)
+    DO UPDATE SET
+      count = rate_limits.count + 1,
+      updated_at = now()
+    RETURNING count
+  `);
+
+  const rows = result as unknown as Array<{ count: number }>;
+  const count = Number(rows[0]?.count ?? 1);
+  const allowed = count <= config.maxRequests;
+  const remaining = Math.max(0, config.maxRequests - count);
+
+  return { allowed, remaining, resetAt };
 }
 
 export const AUTH_RATE_LIMIT: RateLimitConfig = {
@@ -64,6 +49,41 @@ export const AUTH_RATE_LIMIT: RateLimitConfig = {
 export const LOGIN_RATE_LIMIT: RateLimitConfig = {
   windowMs: 15 * 60 * 1000,
   maxRequests: 5,
+};
+
+export const PRINT_JOB_RATE_LIMIT: RateLimitConfig = {
+  windowMs: 60 * 1000,
+  maxRequests: 10,
+};
+
+export const PRINT_RENDER_RATE_LIMIT: RateLimitConfig = {
+  windowMs: 60 * 1000,
+  maxRequests: 5,
+};
+
+export const PRINT_PREVIEW_RATE_LIMIT: RateLimitConfig = {
+  windowMs: 60 * 1000,
+  maxRequests: 20,
+};
+
+export const WEBHOOK_RETRY_RATE_LIMIT: RateLimitConfig = {
+  windowMs: 60 * 1000,
+  maxRequests: 10,
+};
+
+export const IMPORT_RATE_LIMIT: RateLimitConfig = {
+  windowMs: 60 * 1000,
+  maxRequests: 5,
+};
+
+export const EXPORT_RATE_LIMIT: RateLimitConfig = {
+  windowMs: 60 * 1000,
+  maxRequests: 10,
+};
+
+export const WEBHOOK_RATE_LIMIT: RateLimitConfig = {
+  windowMs: 60 * 1000,
+  maxRequests: 20,
 };
 
 export type RouteHandler = (req: Request) => Promise<Response> | Response;
@@ -77,7 +97,7 @@ export function withRateLimit(
     const url = new URL(req.url);
     const key = `${ip}:${url.pathname}`;
     
-    const result = checkRateLimit(key, config);
+    const result = await checkRateLimitDb(key, config);
     
     if (!result.allowed) {
       return new Response(
@@ -118,7 +138,7 @@ export function withLoginRateLimit(
     const ip = getClientIdentifier(req);
     const ipKey = `login:ip:${ip}`;
     
-    const ipResult = checkRateLimit(ipKey, LOGIN_RATE_LIMIT);
+    const ipResult = await checkRateLimitDb(ipKey, LOGIN_RATE_LIMIT);
     if (!ipResult.allowed) {
       return new Response(
         JSON.stringify({ error: "Too many login attempts. Please try again later." }),
@@ -138,7 +158,7 @@ export function withLoginRateLimit(
         const email = await getEmailFromRequest(clonedReq);
         if (email) {
           const emailKey = `login:email:${email.toLowerCase()}`;
-          const emailResult = checkRateLimit(emailKey, LOGIN_RATE_LIMIT);
+          const emailResult = await checkRateLimitDb(emailKey, LOGIN_RATE_LIMIT);
           if (!emailResult.allowed) {
             return new Response(
               JSON.stringify({ error: "Too many login attempts for this account. Please try again later." }),

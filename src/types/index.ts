@@ -1,7 +1,3 @@
-/**
- * Central export for all types
- */
-
 export * from "./permissions";
 export * from "./tenant";
 export * from "./user";
@@ -9,3 +5,9 @@ export * from "./asset";
 export * from "./label-spec";
 export * from "./template";
 export * from "./audit";
+export * from "./print";
+export * from "./api-key";
+export * from "./background-job";
+export * from "./webhook";
+export * from "./import-export";
+export * from "./print-agent";

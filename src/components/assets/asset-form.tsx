@@ -101,8 +101,8 @@ export function AssetForm({ asset, open, onOpenChange, onSuccess }: AssetFormPro
         department: asset.department ?? "",
         assignedTo: asset.assignedTo ?? "",
         status: asset.status,
-        purchaseDate: asset.purchaseDate ? new Date(asset.purchaseDate).toISOString().split("T")[0] : "",
-        warrantyExpiry: asset.warrantyExpiry ? new Date(asset.warrantyExpiry).toISOString().split("T")[0] : "",
+        purchaseDate: asset.purchaseDate ? new Date(asset.purchaseDate).toISOString().split("T")[0] ?? "" : "",
+        warrantyExpiry: asset.warrantyExpiry ? new Date(asset.warrantyExpiry).toISOString().split("T")[0] ?? "" : "",
         notes: asset.notes ?? "",
         customFields: (asset.customFields as Record<string, string | number | boolean>) ?? {},
       });

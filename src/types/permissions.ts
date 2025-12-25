@@ -17,10 +17,16 @@ export const PERMISSIONS = {
   // Print permissions
   PRINT_EXECUTE: "print:execute",
   PRINT_ADMIN: "print:admin",
+  PRINT_AGENT: "print:agent",
 
   // User management permissions
   USER_READ: "user:read",
   USER_MANAGE: "user:manage",
+
+  INTEGRATION_MANAGE: "integration:manage",
+  IMPORT_EXECUTE: "import:execute",
+  EXPORT_READ: "export:read",
+  WEBHOOK_MANAGE: "webhook:manage",
 
   // Tenant administration
   TENANT_ADMIN: "tenant:admin",
@@ -50,8 +56,13 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     PERMISSIONS.TEMPLATE_PUBLISH,
     PERMISSIONS.PRINT_EXECUTE,
     PERMISSIONS.PRINT_ADMIN,
+    PERMISSIONS.PRINT_AGENT,
     PERMISSIONS.USER_READ,
     PERMISSIONS.USER_MANAGE,
+    PERMISSIONS.INTEGRATION_MANAGE,
+    PERMISSIONS.IMPORT_EXECUTE,
+    PERMISSIONS.EXPORT_READ,
+    PERMISSIONS.WEBHOOK_MANAGE,
     PERMISSIONS.TENANT_ADMIN,
   ],
   manager: [
@@ -64,16 +75,20 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     PERMISSIONS.PRINT_EXECUTE,
     PERMISSIONS.PRINT_ADMIN,
     PERMISSIONS.USER_READ,
+    PERMISSIONS.IMPORT_EXECUTE,
+    PERMISSIONS.EXPORT_READ,
   ],
   user: [
     PERMISSIONS.ASSET_READ,
     PERMISSIONS.ASSET_WRITE,
     PERMISSIONS.TEMPLATE_READ,
     PERMISSIONS.PRINT_EXECUTE,
+    PERMISSIONS.EXPORT_READ,
   ],
   viewer: [
     PERMISSIONS.ASSET_READ,
     PERMISSIONS.TEMPLATE_READ,
+    PERMISSIONS.EXPORT_READ,
   ],
 } as const;
 

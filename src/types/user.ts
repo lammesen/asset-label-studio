@@ -53,6 +53,7 @@ export interface AccessTokenPayload {
  */
 export interface RefreshTokenPayload {
   sub: string; // userId
+  tid: string; // tenantId
   sid: string; // sessionId
   iat: number;
   exp: number;

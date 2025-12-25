@@ -161,6 +161,10 @@ async function seed() {
     })
     .returning();
 
+  if (!tenant) {
+    throw new Error("Failed to create tenant");
+  }
+
   console.log(`✅ Created tenant: ${tenant.name} (${tenant.id})`);
 
   const adminPasswordHash = await hashPassword("admin123!");
@@ -176,6 +180,10 @@ async function seed() {
       isActive: true,
     })
     .returning();
+
+  if (!adminUser) {
+    throw new Error("Failed to create admin user");
+  }
 
   console.log(`✅ Created admin user: ${adminUser.email}`);
 
@@ -193,6 +201,10 @@ async function seed() {
     })
     .returning();
 
+  if (!managerUser) {
+    throw new Error("Failed to create manager user");
+  }
+
   console.log(`✅ Created manager user: ${managerUser.email}`);
 
   const userPasswordHash = await hashPassword("user123!");
@@ -208,6 +220,10 @@ async function seed() {
       isActive: true,
     })
     .returning();
+
+  if (!regularUser) {
+    throw new Error("Failed to create regular user");
+  }
 
   console.log(`✅ Created regular user: ${regularUser.email}`);
 
@@ -236,6 +252,10 @@ async function seed() {
         createdBy: adminUser.id,
       })
       .returning();
+
+    if (!template) {
+      throw new Error(`Failed to create template: ${templateDef.name}`);
+    }
 
     console.log(`   ✅ Created template: ${template.name}`);
   }

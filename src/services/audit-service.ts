@@ -117,7 +117,8 @@ export async function getAuditLogs(
 function getClientIP(req: Request): string | undefined {
   const forwarded = req.headers.get("x-forwarded-for");
   if (forwarded) {
-    return forwarded.split(",")[0].trim();
+    const firstIp = forwarded.split(",")[0];
+    return firstIp?.trim();
   }
   const realIP = req.headers.get("x-real-ip");
   if (realIP) {

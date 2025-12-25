@@ -52,7 +52,11 @@ export function requireAnyPermission(
   permissions: Permission[]
 ): void {
   if (!hasAnyPermission(ctx, permissions)) {
-    throw new PermissionError(permissions[0]);
+    const firstPermission = permissions[0];
+    if (!firstPermission) {
+      throw new Error("No permissions provided");
+    }
+    throw new PermissionError(firstPermission);
   }
 }
 

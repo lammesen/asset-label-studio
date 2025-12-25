@@ -40,6 +40,10 @@ export async function createUser(
     })
     .returning();
 
+  if (!row) {
+    throw new Error("Failed to create user");
+  }
+
   await createAuditLog(ctx, {
     action: AUDIT_ACTIONS.USER_CREATED,
     resourceType: "user",

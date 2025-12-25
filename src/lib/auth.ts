@@ -46,6 +46,12 @@ const REFRESH_TOKEN_EXPIRY = "7d";
 export const ACCESS_TOKEN_EXPIRY_SECONDS = 15 * 60;
 export const REFRESH_TOKEN_EXPIRY_SECONDS = 7 * 24 * 60 * 60;
 
+// Centralized cookie path constants - MUST be used consistently for set and clear
+export const COOKIE_PATHS = {
+  ACCESS_TOKEN: "/",
+  REFRESH_TOKEN: "/api/auth/refresh",
+} as const;
+
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 export async function hashPassword(password: string): Promise<string> {
@@ -88,11 +94,13 @@ export async function createAccessToken(payload: {
 
 export async function createRefreshToken(payload: {
   userId: string;
+  tenantId: string;
   sessionId: string;
 }): Promise<string> {
   const { refresh } = getSecrets();
   return new SignJWT({
     sub: payload.userId,
+    tid: payload.tenantId,
     sid: payload.sessionId,
   })
     .setProtectedHeader({ alg: "HS256" })
@@ -128,6 +136,7 @@ export async function verifyRefreshToken(
     const { payload } = await jwtVerify(token, refresh);
     return {
       sub: payload.sub as string,
+      tid: payload.tid as string,
       sid: payload.sid as string,
       iat: payload.iat as number,
       exp: payload.exp as number,
@@ -160,7 +169,7 @@ export function getAccessTokenCookieOptions(): CookieOptions {
     httpOnly: true,
     secure: IS_PRODUCTION,
     sameSite: "Strict",
-    path: "/",
+    path: COOKIE_PATHS.ACCESS_TOKEN,
     maxAge: ACCESS_TOKEN_EXPIRY_SECONDS,
   };
 }
@@ -170,7 +179,7 @@ export function getRefreshTokenCookieOptions(): CookieOptions {
     httpOnly: true,
     secure: IS_PRODUCTION,
     sameSite: "Strict",
-    path: "/api/auth",
+    path: COOKIE_PATHS.REFRESH_TOKEN,
     maxAge: REFRESH_TOKEN_EXPIRY_SECONDS,
   };
 }

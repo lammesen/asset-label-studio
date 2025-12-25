@@ -8,27 +8,29 @@ import type { TenantContext } from "@/types/tenant";
 export type RouteHandler = (req: Request) => Promise<Response> | Response;
 export type AuthenticatedHandler = (req: Request, ctx: TenantContext) => Promise<Response> | Response;
 
+const UNAUTHORIZED_RESPONSE = { error: "Unauthorized" };
+
 export function withAuth(handler: AuthenticatedHandler): RouteHandler {
   return async (req: Request): Promise<Response> => {
     const cookies = parseCookies(req.headers.get("cookie") ?? "");
     const accessToken = cookies["access_token"];
 
     if (!accessToken) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
+      return Response.json(UNAUTHORIZED_RESPONSE, { status: 401 });
     }
 
     const payload = await verifyAccessToken(accessToken);
     if (!payload) {
-      return Response.json({ error: "Invalid or expired token" }, { status: 401 });
+      return Response.json(UNAUTHORIZED_RESPONSE, { status: 401 });
     }
 
-    const sessionInfo = await getSessionInfo(payload.sid);
+    const sessionInfo = await getSessionInfo(payload.sid, payload.tid);
     if (!sessionInfo) {
-      return Response.json({ error: "Session expired" }, { status: 401 });
+      return Response.json(UNAUTHORIZED_RESPONSE, { status: 401 });
     }
 
     if (sessionInfo.userId !== payload.sub || sessionInfo.tenantId !== payload.tid) {
-      return Response.json({ error: "Token mismatch" }, { status: 401 });
+      return Response.json(UNAUTHORIZED_RESPONSE, { status: 401 });
     }
 
     const ctx: TenantContext = {
@@ -60,7 +62,7 @@ export function withOptionalAuth(
       return handler(req, null);
     }
 
-    const sessionInfo = await getSessionInfo(payload.sid);
+    const sessionInfo = await getSessionInfo(payload.sid, payload.tid);
     if (!sessionInfo) {
       return handler(req, null);
     }
