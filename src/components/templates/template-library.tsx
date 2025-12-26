@@ -1,14 +1,32 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { 
+  Plus, 
+  Search, 
+  FileText, 
+  Copy, 
+  Trash2, 
+  Globe, 
+  Check, 
+  MoreVertical,
+  Layout,
+  Filter,
+  SearchX,
+  Lightbulb,
+  ArrowUpDown,
+  Layers
+} from "lucide-react";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -27,11 +45,15 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
 import { useTemplates } from "@/hooks/use-templates";
-import { cn } from "@/lib/utils";
 import type { LabelTemplate } from "@/types/template";
 import type { EquipmentCategory } from "@/types/asset";
 import { EQUIPMENT_CATEGORIES } from "@/types/asset";
 import { LABEL_FORMATS, type LabelFormatId } from "@/types/label-spec";
+import { PageShell, PageHeader } from "@/components/ui/page-shell";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
+import { ErrorState } from "@/components/ui/error-state";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Can } from "@/components/auth/permission-gate";
 
 interface TemplateLibraryProps {
   onEditTemplate: (template: LabelTemplate) => void;
@@ -49,6 +71,194 @@ const CATEGORY_LABELS: Record<EquipmentCategory, string> = {
 
 const PAGE_SIZE = 12;
 
+type SortOption = "name-asc" | "name-desc" | "updated" | "version";
+type GroupOption = "none" | "category" | "format";
+
+const SORT_LABELS: Record<SortOption, string> = {
+  "name-asc": "Name A-Z",
+  "name-desc": "Name Z-A",
+  "updated": "Last Updated",
+  "version": "Version",
+};
+
+const GROUP_LABELS: Record<GroupOption, string> = {
+  "none": "No Grouping",
+  "category": "By Category",
+  "format": "By Format",
+};
+
+interface TemplateCardProps {
+  template: LabelTemplate;
+  onEdit: (template: LabelTemplate) => void;
+  onDelete: (template: LabelTemplate) => void;
+  onDuplicate: (template: LabelTemplate) => void;
+  onPublish: (template: LabelTemplate) => void;
+}
+
+function TemplateCard({ template, onEdit, onDelete, onDuplicate, onPublish }: TemplateCardProps) {
+  return (
+    <Card className="group overflow-hidden hover:shadow-md transition-all duration-300 border-border/60 hover:border-border">
+      <div className="aspect-[3/2] bg-muted relative overflow-hidden group-hover:bg-muted/80 transition-colors">
+        {template.thumbnailUrl ? (
+          <img
+            src={template.thumbnailUrl}
+            alt={template.name}
+            className="w-full h-full object-contain p-4 transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-muted-foreground/20">
+            <Layout className="h-16 w-16" />
+          </div>
+        )}
+        
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="secondary" size="icon" className="h-8 w-8 shadow-sm">
+                <MoreVertical className="h-4 w-4" />
+                <span className="sr-only">Actions</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEdit(template)}>
+                <FileText className="h-4 w-4 mr-2" />
+                Edit Design
+              </DropdownMenuItem>
+              <Can permission="template:write">
+                <DropdownMenuItem onClick={() => onDuplicate(template)}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Duplicate
+                </DropdownMenuItem>
+              </Can>
+              <Can permission="template:publish">
+                {!template.isSystemTemplate && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => onPublish(template)}>
+                      {template.isPublished ? (
+                        <>
+                          <Globe className="h-4 w-4 mr-2" />
+                          Unpublish
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-4 w-4 mr-2" />
+                          Publish
+                        </>
+                      )}
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </Can>
+              <Can permission="template:write">
+                {!template.isSystemTemplate && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => onDelete(template)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </Can>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        
+        <div className="absolute top-2 left-2 flex flex-col gap-1">
+          {template.isPublished ? (
+            <Badge variant="secondary" className="bg-emerald-500/90 text-white backdrop-blur-sm border-0 font-medium shadow-sm">Published</Badge>
+          ) : (
+            <Badge variant="secondary" className="bg-amber-500/90 text-white backdrop-blur-sm border-0 font-medium shadow-sm">Draft</Badge>
+          )}
+        </div>
+      </div>
+      
+      <CardContent className="p-4 space-y-3">
+        <div>
+          <h3 className="font-semibold text-foreground truncate" title={template.name}>{template.name}</h3>
+          <p className="text-xs text-muted-foreground mt-1 line-clamp-2 min-h-[2.5em]">
+            {template.description || "No description provided."}
+          </p>
+        </div>
+        
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-normal bg-muted/50 border-muted">
+            {LABEL_FORMATS[template.format as LabelFormatId]?.name ?? template.format}
+          </Badge>
+          {template.category && (
+            <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-normal bg-muted/50 border-muted">
+              {CATEGORY_LABELS[template.category as EquipmentCategory]}
+            </Badge>
+          )}
+        </div>
+      </CardContent>
+      
+      <CardFooter className="p-4 pt-0 text-xs text-muted-foreground border-t border-border/40 bg-muted/20 flex justify-between items-center h-10">
+        <span>v{template.version}</span>
+        <span>{new Date(template.updatedAt).toLocaleDateString()}</span>
+      </CardFooter>
+    </Card>
+  );
+}
+
+interface TemplateGridProps {
+  templates: LabelTemplate[];
+  groupedTemplates: [string, LabelTemplate[]][] | null;
+  onEdit: (template: LabelTemplate) => void;
+  onDelete: (template: LabelTemplate) => void;
+  onDuplicate: (template: LabelTemplate) => void;
+  onPublish: (template: LabelTemplate) => void;
+}
+
+function TemplateGrid({ templates, groupedTemplates, onEdit, onDelete, onDuplicate, onPublish }: TemplateGridProps) {
+  if (groupedTemplates) {
+    return (
+      <div className="space-y-8">
+        {groupedTemplates.map(([groupName, groupTemplates]) => (
+          <div key={groupName}>
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Layers className="h-5 w-5 text-muted-foreground" />
+              {groupName}
+              <Badge variant="secondary" className="ml-2">{groupTemplates.length}</Badge>
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {groupTemplates.map((template) => (
+                <TemplateCard
+                  key={template.id}
+                  template={template}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  onDuplicate={onDuplicate}
+                  onPublish={onPublish}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {templates.map((template) => (
+        <TemplateCard
+          key={template.id}
+          template={template}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onDuplicate={onDuplicate}
+          onPublish={onPublish}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function TemplateLibrary({ onEditTemplate, onCreateTemplate }: TemplateLibraryProps) {
   const { listTemplates, deleteTemplate, duplicateTemplate, publishTemplate, unpublishTemplate, isLoading, error } = useTemplates();
   const { hasPermission } = useAuth();
@@ -60,12 +270,24 @@ export function TemplateLibrary({ onEditTemplate, onCreateTemplate }: TemplateLi
   const [categoryFilter, setCategoryFilter] = useState<EquipmentCategory | "all">("all");
   const [formatFilter, setFormatFilter] = useState<LabelFormatId | "all">("all");
   const [publishedFilter, setPublishedFilter] = useState<"all" | "published" | "draft">("all");
+  const [sortOption, setSortOption] = useState<SortOption>("updated");
+  const [groupOption, setGroupOption] = useState<GroupOption>("none");
   const [deleteConfirmTemplate, setDeleteConfirmTemplate] = useState<LabelTemplate | null>(null);
   const [duplicateDialogTemplate, setDuplicateDialogTemplate] = useState<LabelTemplate | null>(null);
   const [duplicateName, setDuplicateName] = useState("");
+  const [showGettingStarted, setShowGettingStarted] = useState(true);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const canWrite = hasPermission("template:write");
-  const canPublish = hasPermission("template:publish");
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "/" && !["INPUT", "TEXTAREA"].includes((e.target as HTMLElement).tagName)) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const fetchTemplates = useCallback(async () => {
     const result = await listTemplates({
@@ -130,298 +352,284 @@ export function TemplateLibrary({ onEditTemplate, onCreateTemplate }: TemplateLi
     setDuplicateName(`${template.name} (Copy)`);
   }
 
+  const sortedTemplates = useMemo(() => {
+    const sorted = [...templates].sort((a, b) => {
+      switch (sortOption) {
+        case "name-asc":
+          return a.name.localeCompare(b.name);
+        case "name-desc":
+          return b.name.localeCompare(a.name);
+        case "updated":
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        case "version":
+          return b.version - a.version;
+        default:
+          return 0;
+      }
+    });
+    return sorted;
+  }, [templates, sortOption]);
+
+  const groupedTemplates = useMemo(() => {
+    if (groupOption === "none") {
+      return null;
+    }
+
+    const groups: Record<string, LabelTemplate[]> = {};
+    
+    for (const template of sortedTemplates) {
+      let groupKey: string;
+      
+      if (groupOption === "category") {
+        groupKey = template.category 
+          ? (CATEGORY_LABELS[template.category as EquipmentCategory] ?? "Other")
+          : "Universal";
+      } else {
+        const format = LABEL_FORMATS[template.format as LabelFormatId];
+        groupKey = format?.name ?? template.format;
+      }
+      
+      if (!groups[groupKey]) {
+        groups[groupKey] = [];
+      }
+      groups[groupKey]!.push(template);
+    }
+
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  }, [sortedTemplates, groupOption]);
+
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="rounded-full bg-red-100 p-3 mb-4">
-          <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Failed to load templates</h3>
-        <p className="text-sm text-gray-500 mb-4">{error}</p>
-        <Button onClick={fetchTemplates}>Try again</Button>
-      </div>
-    );
+    return <ErrorState message={error} onRetry={fetchTemplates} fullPage />;
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-          <div className="relative w-full sm:w-64">
-            <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+    <PageShell>
+      <PageHeader
+        title="Templates"
+        description="Design and manage label templates for your assets."
+        breadcrumbs={[{ label: "Dashboard" }, { label: "Templates" }]}
+      >
+        <Can permission="template:write">
+          <Button onClick={onCreateTemplate} className="shadow-sm">
+            <Plus className="h-4 w-4 mr-2" />
+            New Template
+          </Button>
+        </Can>
+      </PageHeader>
+
+      {showGettingStarted && templates.length === 0 && !isLoading && !search && categoryFilter === "all" && formatFilter === "all" && publishedFilter === "all" && hasPermission("template:write") && (
+        <Alert className="mb-4 border-primary/20 bg-primary/5">
+          <Lightbulb className="h-4 w-4 text-primary" />
+          <AlertTitle className="text-primary">Getting Started with Templates</AlertTitle>
+          <AlertDescription className="text-muted-foreground">
+            Templates define how your asset labels look. Create a template first, then you can print labels for any of your assets using that design.
+            <div className="mt-3 flex items-center gap-3">
+              <Button size="sm" onClick={onCreateTemplate}>
+                <Plus className="h-4 w-4 mr-1" />
+                Create Your First Template
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setShowGettingStarted(false)}>
+                Dismiss
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="space-y-6">
+        {/* Filters */}
+        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between bg-card p-4 rounded-lg border border-border shadow-sm">
+          <div className="relative w-full lg:w-96">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
+              ref={searchInputRef}
               placeholder="Search templates..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
+              className="pl-9 pr-12 bg-background"
             />
+            <kbd className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none hidden sm:inline-flex h-5 items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+              /
+            </kbd>
           </div>
 
-          <Select
-            value={categoryFilter}
-            onValueChange={(value) => {
-              setCategoryFilter(value as EquipmentCategory | "all");
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-40">
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {Object.values(EQUIPMENT_CATEGORIES).map((cat) => (
-                <SelectItem key={cat} value={cat}>
-                  {CATEGORY_LABELS[cat]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-wrap gap-2 w-full lg:w-auto">
+            <Select
+              value={categoryFilter}
+              onValueChange={(value) => {
+                setCategoryFilter(value as EquipmentCategory | "all");
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[140px] bg-background">
+                 <Filter className="mr-2 h-4 w-4 text-muted-foreground" />
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {Object.values(EQUIPMENT_CATEGORIES).map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {CATEGORY_LABELS[cat]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <Select
-            value={formatFilter}
-            onValueChange={(value) => {
-              setFormatFilter(value as LabelFormatId | "all");
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-40">
-              <SelectValue placeholder="Format" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Formats</SelectItem>
-              {Object.entries(LABEL_FORMATS).map(([id, format]) => (
-                <SelectItem key={id} value={id}>
-                  {format.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Select
+              value={formatFilter}
+              onValueChange={(value) => {
+                setFormatFilter(value as LabelFormatId | "all");
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[140px] bg-background">
+                <SelectValue placeholder="Format" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Formats</SelectItem>
+                {Object.entries(LABEL_FORMATS).map(([id, format]) => (
+                  <SelectItem key={id} value={id}>
+                    {format.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <Select
-            value={publishedFilter}
-            onValueChange={(value) => {
-              setPublishedFilter(value as "all" | "published" | "draft");
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-32">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="published">Published</SelectItem>
-              <SelectItem value="draft">Drafts</SelectItem>
-            </SelectContent>
-          </Select>
+            <Select
+              value={publishedFilter}
+              onValueChange={(value) => {
+                setPublishedFilter(value as "all" | "published" | "draft");
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[130px] bg-background">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="published">Published</SelectItem>
+                <SelectItem value="draft">Drafts</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <div className="h-6 w-px bg-border hidden lg:block" />
+
+            <Select
+              value={sortOption}
+              onValueChange={(value) => setSortOption(value as SortOption)}
+            >
+              <SelectTrigger className="w-[140px] bg-background">
+                <ArrowUpDown className="mr-2 h-4 w-4 text-muted-foreground" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.entries(SORT_LABELS) as [SortOption, string][]).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={groupOption}
+              onValueChange={(value) => setGroupOption(value as GroupOption)}
+            >
+              <SelectTrigger className="w-[140px] bg-background">
+                <Layers className="mr-2 h-4 w-4 text-muted-foreground" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.entries(GROUP_LABELS) as [GroupOption, string][]).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {canWrite && (
-          <Button onClick={onCreateTemplate} className="w-full sm:w-auto">
-            <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            New Template
-          </Button>
+        {/* Content */}
+        {isLoading ? (
+          <LoadingSkeleton variant="card-grid" count={6} />
+        ) : templates.length === 0 ? (
+          <div className="rounded-lg border border-dashed bg-card/50">
+            {search || categoryFilter !== "all" || formatFilter !== "all" || publishedFilter !== "all" ? (
+              <EmptyState
+                icon={SearchX}
+                title="No matching templates"
+                description="Try adjusting your search terms or filters."
+                action={
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setSearch("");
+                      setCategoryFilter("all");
+                      setFormatFilter("all");
+                      setPublishedFilter("all");
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={FileText}
+                title="No templates found"
+                description="Get started by creating your first label template."
+                action={
+                  <Can permission="template:write">
+                    <Button onClick={onCreateTemplate}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Template
+                    </Button>
+                  </Can>
+                }
+              />
+            )}
+          </div>
+        ) : (
+          <TemplateGrid
+            templates={groupedTemplates ? [] : sortedTemplates}
+            groupedTemplates={groupedTemplates}
+            onEdit={onEditTemplate}
+            onDelete={setDeleteConfirmTemplate}
+            onDuplicate={openDuplicateDialog}
+            onPublish={handlePublish}
+          />
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-6 border-t border-border">
+            <div className="text-sm text-muted-foreground">
+              Page {page} of {totalPages}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         )}
       </div>
-
-      {isLoading && templates.length === 0 ? (
-        <div className="flex items-center justify-center py-12">
-          <svg className="animate-spin h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-        </div>
-      ) : templates.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="rounded-full bg-gray-100 p-3 mb-4">
-            <svg className="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No templates found</h3>
-          <p className="text-sm text-gray-500 mb-4">
-            {search || categoryFilter !== "all" || formatFilter !== "all"
-              ? "Try adjusting your search or filters"
-              : "Get started by creating your first label template"}
-          </p>
-          {canWrite && !search && categoryFilter === "all" && formatFilter === "all" && (
-            <Button onClick={onCreateTemplate}>
-              <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              New Template
-            </Button>
-          )}
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {templates.map((template) => (
-              <Card key={template.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <CardTitle className="text-base truncate">{template.name}</CardTitle>
-                      {template.description && (
-                        <CardDescription className="mt-1 line-clamp-2">
-                          {template.description}
-                        </CardDescription>
-                      )}
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" aria-label="Template actions">
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                          </svg>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onEditTemplate(template)}>
-                          <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                          Edit
-                        </DropdownMenuItem>
-                        {canWrite && (
-                          <DropdownMenuItem onClick={() => openDuplicateDialog(template)}>
-                            <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                            Duplicate
-                          </DropdownMenuItem>
-                        )}
-                        {canPublish && !template.isSystemTemplate && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handlePublish(template)}>
-                              {template.isPublished ? (
-                                <>
-                                  <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                                  </svg>
-                                  Unpublish
-                                </>
-                              ) : (
-                                <>
-                                  <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                  Publish
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                        {canWrite && !template.isSystemTemplate && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-red-600"
-                              onClick={() => setDeleteConfirmTemplate(template)}
-                            >
-                              <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                              Delete
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="aspect-[3/2] bg-gray-100 rounded-md mb-3 flex items-center justify-center">
-                    {template.thumbnailUrl ? (
-                      <img
-                        src={template.thumbnailUrl}
-                        alt={`${template.name} preview`}
-                        className="w-full h-full object-contain rounded-md"
-                      />
-                    ) : (
-                      <svg className="h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                      </svg>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary" className="text-xs">
-                      {LABEL_FORMATS[template.format as LabelFormatId]?.name ?? template.format}
-                    </Badge>
-                    {template.category && (
-                      <Badge variant="outline" className="text-xs">
-                        {CATEGORY_LABELS[template.category as EquipmentCategory]}
-                      </Badge>
-                    )}
-                    <Badge
-                      variant="secondary"
-                      className={cn(
-                        "text-xs",
-                        template.isPublished
-                          ? "bg-green-100 text-green-800"
-                          : "bg-yellow-100 text-yellow-800"
-                      )}
-                    >
-                      {template.isPublished ? "Published" : "Draft"}
-                    </Badge>
-                    {template.isSystemTemplate && (
-                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
-                        System
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Version {template.version} • Updated {new Date(template.updatedAt).toLocaleDateString()}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-4">
-              <div className="text-sm text-gray-500">
-                Showing {(page - 1) * PAGE_SIZE + 1} to {Math.min(page * PAGE_SIZE, total)} of {total} templates
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  Previous
-                </Button>
-                <span className="text-sm text-gray-500">
-                  Page {page} of {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
 
       <Dialog open={Boolean(deleteConfirmTemplate)} onOpenChange={() => setDeleteConfirmTemplate(null)}>
         <DialogContent>
@@ -431,14 +639,14 @@ export function TemplateLibrary({ onEditTemplate, onCreateTemplate }: TemplateLi
               Are you sure you want to delete "{deleteConfirmTemplate?.name}"? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end gap-3 pt-4">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteConfirmTemplate(null)}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleDelete} disabled={isLoading}>
               {isLoading ? "Deleting..." : "Delete Template"}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -450,7 +658,7 @@ export function TemplateLibrary({ onEditTemplate, onCreateTemplate }: TemplateLi
               Create a copy of "{duplicateDialogTemplate?.name}" with a new name.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label htmlFor="duplicate-name" className="text-sm font-medium">
                 New Template Name
@@ -462,17 +670,17 @@ export function TemplateLibrary({ onEditTemplate, onCreateTemplate }: TemplateLi
                 placeholder="Enter template name"
               />
             </div>
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setDuplicateDialogTemplate(null)}>
-                Cancel
-              </Button>
-              <Button onClick={handleDuplicate} disabled={isLoading || !duplicateName.trim()}>
-                {isLoading ? "Duplicating..." : "Duplicate"}
-              </Button>
-            </div>
           </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDuplicateDialogTemplate(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleDuplicate} disabled={isLoading || !duplicateName.trim()}>
+              {isLoading ? "Duplicating..." : "Duplicate"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

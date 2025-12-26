@@ -7,6 +7,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -109,7 +110,7 @@ export function TemplateCreateDialog({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               {selectedFormat.dimensions.width} × {selectedFormat.dimensions.height}{" "}
               {selectedFormat.dimensions.unit}
               {selectedFormat.labelsPerSheet > 1 &&
@@ -132,20 +133,20 @@ export function TemplateCreateDialog({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               Assign to a specific equipment category or leave universal.
             </p>
           </div>
         </div>
 
-        <div className="flex justify-end gap-3">
+        <DialogFooter>
           <Button variant="outline" onClick={() => handleOpenChange(false)}>
             Cancel
           </Button>
           <Button onClick={handleCreate} disabled={!name.trim()}>
             Create Template
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -1,6 +1,7 @@
-import { useState, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { apiFetch, apiGet, apiPost, apiDelete } from "@/lib/api-client";
+import { queryKeys } from "@/lib/query-client";
+import { apiGet, apiPost, apiDelete } from "@/lib/api-client";
 import type {
   PrintJob,
   PrintJobItem,
@@ -9,286 +10,274 @@ import type {
   CreatePrintJobInput,
 } from "@/types/print";
 
-interface UsePrintState {
-  jobs: PrintJob[];
-  currentJob: PrintJob | null;
-  currentJobItems: PrintJobItem[];
-  total: number;
-  page: number;
-  pageSize: number;
-  isLoading: boolean;
-  isCreating: boolean;
-  isRendering: boolean;
-  error: string | null;
+async function fetchJobs(
+  filters: PrintJobFilters,
+  page: number,
+  pageSize: number
+): Promise<PrintJobListResult> {
+  const params = new URLSearchParams();
+  if (filters.status) params.set("status", filters.status);
+  if (filters.templateId) params.set("templateId", filters.templateId);
+  if (filters.createdBy) params.set("createdBy", filters.createdBy);
+  if (filters.startDate) params.set("startDate", filters.startDate.toISOString());
+  if (filters.endDate) params.set("endDate", filters.endDate.toISOString());
+  params.set("page", String(page));
+  params.set("pageSize", String(pageSize));
+
+  const response = await apiGet(`/api/print/jobs?${params}`);
+
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error ?? "Failed to fetch print jobs");
+  }
+
+  return response.json();
 }
 
-interface UsePrintActions {
-  fetchJobs: (filters?: PrintJobFilters, page?: number, pageSize?: number) => Promise<void>;
-  fetchJob: (id: string) => Promise<PrintJob | null>;
-  fetchJobItems: (jobId: string) => Promise<PrintJobItem[]>;
-  createJob: (input: CreatePrintJobInput) => Promise<PrintJob | null>;
-  renderJob: (jobId: string) => Promise<Blob | null>;
-  cancelJob: (jobId: string) => Promise<boolean>;
-  preview: (templateId: string, assetId: string) => Promise<Blob | null>;
-  downloadPdf: (jobId: string, filename?: string) => Promise<void>;
-  clearError: () => void;
+async function fetchJob(id: string): Promise<PrintJob> {
+  const response = await apiGet(`/api/print/jobs/${id}`);
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error("Print job not found");
+    }
+    const data = await response.json();
+    throw new Error(data.error ?? "Failed to fetch print job");
+  }
+
+  const { job } = await response.json();
+  return job;
 }
 
-export function usePrint(): UsePrintState & UsePrintActions {
-  const [state, setState] = useState<UsePrintState>({
-    jobs: [],
-    currentJob: null,
-    currentJobItems: [],
+async function fetchJobItems(jobId: string): Promise<PrintJobItem[]> {
+  const response = await apiGet(`/api/print/jobs/${jobId}/items`);
+
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error ?? "Failed to fetch job items");
+  }
+
+  const { items } = await response.json();
+  return items;
+}
+
+async function createJobApi(input: CreatePrintJobInput): Promise<PrintJob> {
+  const response = await apiPost("/api/print/jobs", input);
+
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error ?? "Failed to create print job");
+  }
+
+  const { job } = await response.json();
+  return job;
+}
+
+async function renderJobApi(jobId: string): Promise<Blob> {
+  const response = await apiGet(`/api/print/jobs/${jobId}/pdf`);
+
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error ?? "Failed to render print job");
+  }
+
+  return response.blob();
+}
+
+async function cancelJobApi(jobId: string): Promise<PrintJob> {
+  const response = await apiDelete(`/api/print/jobs/${jobId}`);
+
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error ?? "Failed to cancel print job");
+  }
+
+  const { job } = await response.json();
+  return job;
+}
+
+async function previewApi(templateId: string, assetId: string): Promise<Blob> {
+  const response = await apiPost("/api/print/preview", { templateId, assetId });
+
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error ?? "Failed to generate preview");
+  }
+
+  return response.blob();
+}
+
+export function usePrintJobList(
+  filters: PrintJobFilters = {},
+  page = 1,
+  pageSize = 20
+) {
+  return useQuery({
+    queryKey: queryKeys.print.jobList({ ...filters, page, pageSize } as Record<string, unknown>),
+    queryFn: () => fetchJobs(filters, page, pageSize),
+  });
+}
+
+export function usePrintJob(id: string | null) {
+  return useQuery({
+    queryKey: queryKeys.print.job(id ?? ""),
+    queryFn: () => fetchJob(id!),
+    enabled: !!id,
+  });
+}
+
+export function usePrintJobItems(jobId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.print.jobItems(jobId ?? ""),
+    queryFn: () => fetchJobItems(jobId!),
+    enabled: !!jobId,
+  });
+}
+
+export function useCreatePrintJob() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: createJobApi,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.print.jobs() });
+    },
+  });
+}
+
+export function useRenderPrintJob() {
+  return useMutation({
+    mutationFn: renderJobApi,
+  });
+}
+
+export function useCancelPrintJob() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: cancelJobApi,
+    onSuccess: (updatedJob) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.print.jobs() });
+      queryClient.setQueryData(queryKeys.print.job(updatedJob.id), updatedJob);
+    },
+  });
+}
+
+export function usePreviewLabel() {
+  return useMutation({
+    mutationFn: ({ templateId, assetId }: { templateId: string; assetId: string }) =>
+      previewApi(templateId, assetId),
+  });
+}
+
+export function usePrint() {
+  const queryClient = useQueryClient();
+  const createMutation = useCreatePrintJob();
+  const renderMutation = useRenderPrintJob();
+  const cancelMutation = useCancelPrintJob();
+  const previewMutation = usePreviewLabel();
+
+  return {
+    jobs: [] as PrintJob[],
+    currentJob: null as PrintJob | null,
+    currentJobItems: [] as PrintJobItem[],
     total: 0,
     page: 1,
     pageSize: 20,
     isLoading: false,
-    isCreating: false,
-    isRendering: false,
-    error: null,
-  });
+    isCreating: createMutation.isPending,
+    isRendering: renderMutation.isPending || previewMutation.isPending,
+    error: createMutation.error?.message || renderMutation.error?.message || null,
 
-  const fetchJobs = useCallback(async (
-    filters: PrintJobFilters = {},
-    page = 1,
-    pageSize = 20
-  ): Promise<void> => {
-    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    fetchJobs: async (
+      filters: PrintJobFilters = {},
+      page = 1,
+      pageSize = 20
+    ): Promise<void> => {
+      await queryClient.fetchQuery({
+        queryKey: queryKeys.print.jobList({ ...filters, page, pageSize } as Record<string, unknown>),
+        queryFn: () => fetchJobs(filters, page, pageSize),
+      });
+    },
 
-    try {
-      const params = new URLSearchParams();
-      if (filters.status) params.set("status", filters.status);
-      if (filters.templateId) params.set("templateId", filters.templateId);
-      if (filters.createdBy) params.set("createdBy", filters.createdBy);
-      if (filters.startDate) params.set("startDate", filters.startDate.toISOString());
-      if (filters.endDate) params.set("endDate", filters.endDate.toISOString());
-      params.set("page", String(page));
-      params.set("pageSize", String(pageSize));
-
-      const response = await apiGet(`/api/print/jobs?${params}`);
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error ?? "Failed to fetch print jobs");
+    fetchJob: async (id: string): Promise<PrintJob | null> => {
+      try {
+        return await queryClient.fetchQuery({
+          queryKey: queryKeys.print.job(id),
+          queryFn: () => fetchJob(id),
+        });
+      } catch {
+        return null;
       }
+    },
 
-      const result: PrintJobListResult = await response.json();
-      
-      setState((prev) => ({
-        ...prev,
-        jobs: result.jobs,
-        total: result.total,
-        page: result.page,
-        pageSize: result.pageSize,
-        isLoading: false,
-      }));
-    } catch (error) {
-      setState((prev) => ({
-        ...prev,
-        isLoading: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }));
-    }
-  }, []);
-
-  const fetchJob = useCallback(async (id: string): Promise<PrintJob | null> => {
-    setState((prev) => ({ ...prev, isLoading: true, error: null }));
-
-    try {
-      const response = await apiGet(`/api/print/jobs/${id}`);
-      
-      if (!response.ok) {
-        if (response.status === 404) {
-          setState((prev) => ({ ...prev, isLoading: false, currentJob: null }));
-          return null;
-        }
-        const data = await response.json();
-        throw new Error(data.error ?? "Failed to fetch print job");
+    fetchJobItems: async (jobId: string): Promise<PrintJobItem[]> => {
+      try {
+        return await queryClient.fetchQuery({
+          queryKey: queryKeys.print.jobItems(jobId),
+          queryFn: () => fetchJobItems(jobId),
+        });
+      } catch {
+        return [];
       }
+    },
 
-      const { job } = await response.json();
-      
-      setState((prev) => ({
-        ...prev,
-        currentJob: job,
-        isLoading: false,
-      }));
-
-      return job;
-    } catch (error) {
-      setState((prev) => ({
-        ...prev,
-        isLoading: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }));
-      return null;
-    }
-  }, []);
-
-  const fetchJobItems = useCallback(async (jobId: string): Promise<PrintJobItem[]> => {
-    try {
-      const response = await apiGet(`/api/print/jobs/${jobId}/items`);
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error ?? "Failed to fetch job items");
+    createJob: async (input: CreatePrintJobInput): Promise<PrintJob | null> => {
+      try {
+        return await createMutation.mutateAsync(input);
+      } catch {
+        return null;
       }
+    },
 
-      const { items } = await response.json();
-      
-      setState((prev) => ({
-        ...prev,
-        currentJobItems: items,
-      }));
-
-      return items;
-    } catch (error) {
-      setState((prev) => ({
-        ...prev,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }));
-      return [];
-    }
-  }, []);
-
-  const createJob = useCallback(async (input: CreatePrintJobInput): Promise<PrintJob | null> => {
-    setState((prev) => ({ ...prev, isCreating: true, error: null }));
-
-    try {
-      const response = await apiPost("/api/print/jobs", input);
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error ?? "Failed to create print job");
+    renderJob: async (jobId: string): Promise<Blob | null> => {
+      try {
+        return await renderMutation.mutateAsync(jobId);
+      } catch {
+        return null;
       }
+    },
 
-      const { job } = await response.json();
-
-      setState((prev) => ({
-        ...prev,
-        jobs: [job, ...prev.jobs],
-        currentJob: job,
-        isCreating: false,
-      }));
-
-      return job;
-    } catch (error) {
-      setState((prev) => ({
-        ...prev,
-        isCreating: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }));
-      return null;
-    }
-  }, []);
-
-  const renderJob = useCallback(async (jobId: string): Promise<Blob | null> => {
-    setState((prev) => ({ ...prev, isRendering: true, error: null }));
-
-    try {
-      const response = await apiGet(`/api/print/jobs/${jobId}/pdf`);
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error ?? "Failed to render print job");
+    cancelJob: async (jobId: string): Promise<boolean> => {
+      try {
+        await cancelMutation.mutateAsync(jobId);
+        return true;
+      } catch {
+        return false;
       }
+    },
 
-      const blob = await response.blob();
-
-      setState((prev) => ({ ...prev, isRendering: false }));
-
-      return blob;
-    } catch (error) {
-      setState((prev) => ({
-        ...prev,
-        isRendering: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }));
-      return null;
-    }
-  }, []);
-
-  const cancelJob = useCallback(async (jobId: string): Promise<boolean> => {
-    try {
-      const response = await apiDelete(`/api/print/jobs/${jobId}`);
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error ?? "Failed to cancel print job");
+    preview: async (templateId: string, assetId: string): Promise<Blob | null> => {
+      try {
+        return await previewMutation.mutateAsync({ templateId, assetId });
+      } catch {
+        return null;
       }
+    },
 
-      const { job } = await response.json();
+    downloadPdf: async (jobId: string, filename?: string): Promise<void> => {
+      const blob = await renderMutation.mutateAsync(jobId);
+      if (!blob) return;
 
-      setState((prev) => ({
-        ...prev,
-        jobs: prev.jobs.map((j) => (j.id === jobId ? job : j)),
-        currentJob: prev.currentJob?.id === jobId ? job : prev.currentJob,
-      }));
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename ?? `print-job-${jobId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    },
 
-      return true;
-    } catch (error) {
-      setState((prev) => ({
-        ...prev,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }));
-      return false;
-    }
-  }, []);
+    clearError: () => {
+      createMutation.reset();
+      renderMutation.reset();
+      cancelMutation.reset();
+      previewMutation.reset();
+    },
 
-  const preview = useCallback(async (templateId: string, assetId: string): Promise<Blob | null> => {
-    setState((prev) => ({ ...prev, isRendering: true, error: null }));
-
-    try {
-      const response = await apiPost("/api/print/preview", { templateId, assetId });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error ?? "Failed to generate preview");
-      }
-
-      const blob = await response.blob();
-
-      setState((prev) => ({ ...prev, isRendering: false }));
-
-      return blob;
-    } catch (error) {
-      setState((prev) => ({
-        ...prev,
-        isRendering: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }));
-      return null;
-    }
-  }, []);
-
-  const downloadPdf = useCallback(async (jobId: string, filename?: string): Promise<void> => {
-    const blob = await renderJob(jobId);
-    if (!blob) return;
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename ?? `print-job-${jobId}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }, [renderJob]);
-
-  const clearError = useCallback(() => {
-    setState((prev) => ({ ...prev, error: null }));
-  }, []);
-
-  return {
-    ...state,
-    fetchJobs,
-    fetchJob,
-    fetchJobItems,
-    createJob,
-    renderJob,
-    cancelJob,
-    preview,
-    downloadPdf,
-    clearError,
+    invalidatePrintJobs: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.print.all });
+    },
   };
 }

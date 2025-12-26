@@ -1,4 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ColorPicker } from "@/components/ui/color-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -162,20 +164,10 @@ function TextStyleEditor({
 
       <div className="space-y-2">
         <Label className="text-xs">Color</Label>
-        <div className="flex items-center gap-2">
-          <input
-            type="color"
-            value={style.color}
-            onChange={(e) => onStyleChange({ color: e.target.value })}
-            className="h-8 w-12 cursor-pointer rounded border"
-          />
-          <Input
-            value={style.color}
-            onChange={(e) => onStyleChange({ color: e.target.value })}
-            className="h-8 flex-1"
-            placeholder="#000000"
-          />
-        </div>
+        <ColorPicker
+          value={style.color}
+          onChange={(value) => onStyleChange({ color: value })}
+        />
       </div>
 
       <div className="space-y-2">
@@ -255,49 +247,27 @@ function BarcodeStyleEditor({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-2">
-          <Label className="text-xs">Line Color</Label>
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={style.lineColor}
-              onChange={(e) => onStyleChange({ lineColor: e.target.value })}
-              className="h-8 w-10 cursor-pointer rounded border"
-            />
-            <Input
-              value={style.lineColor}
-              onChange={(e) => onStyleChange({ lineColor: e.target.value })}
-              className="h-8 flex-1"
-            />
-          </div>
-        </div>
+      <div className="space-y-2">
+        <Label className="text-xs">Line Color</Label>
+        <ColorPicker
+          value={style.lineColor}
+          onChange={(value) => onStyleChange({ lineColor: value })}
+        />
+      </div>
 
-        <div className="space-y-2">
-          <Label className="text-xs">Background</Label>
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={style.background}
-              onChange={(e) => onStyleChange({ background: e.target.value })}
-              className="h-8 w-10 cursor-pointer rounded border"
-            />
-            <Input
-              value={style.background}
-              onChange={(e) => onStyleChange({ background: e.target.value })}
-              className="h-8 flex-1"
-            />
-          </div>
-        </div>
+      <div className="space-y-2">
+        <Label className="text-xs">Background</Label>
+        <ColorPicker
+          value={style.background}
+          onChange={(value) => onStyleChange({ background: value })}
+        />
       </div>
 
       <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
+        <Checkbox
           id="displayValue"
           checked={style.displayValue}
-          onChange={(e) => onStyleChange({ displayValue: e.target.checked })}
-          className="h-4 w-4"
+          onCheckedChange={(checked) => onStyleChange({ displayValue: checked === true })}
         />
         <Label htmlFor="displayValue" className="text-xs cursor-pointer">
           Display value below barcode
@@ -349,40 +319,20 @@ function QRCodeStyleEditor({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-2">
-          <Label className="text-xs">Dark Color</Label>
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={style.darkColor}
-              onChange={(e) => onStyleChange({ darkColor: e.target.value })}
-              className="h-8 w-10 cursor-pointer rounded border"
-            />
-            <Input
-              value={style.darkColor}
-              onChange={(e) => onStyleChange({ darkColor: e.target.value })}
-              className="h-8 flex-1"
-            />
-          </div>
-        </div>
+      <div className="space-y-2">
+        <Label className="text-xs">Dark Color</Label>
+        <ColorPicker
+          value={style.darkColor}
+          onChange={(value) => onStyleChange({ darkColor: value })}
+        />
+      </div>
 
-        <div className="space-y-2">
-          <Label className="text-xs">Light Color</Label>
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={style.lightColor}
-              onChange={(e) => onStyleChange({ lightColor: e.target.value })}
-              className="h-8 w-10 cursor-pointer rounded border"
-            />
-            <Input
-              value={style.lightColor}
-              onChange={(e) => onStyleChange({ lightColor: e.target.value })}
-              className="h-8 flex-1"
-            />
-          </div>
-        </div>
+      <div className="space-y-2">
+        <Label className="text-xs">Light Color</Label>
+        <ColorPicker
+          value={style.lightColor}
+          onChange={(value) => onStyleChange({ lightColor: value })}
+        />
       </div>
     </div>
   );
@@ -578,45 +528,23 @@ export function ElementEditor({ element, onElementChange, unit }: ElementEditorP
               {element.type === "rect" && (
                 <div className="space-y-2">
                   <Label className="text-xs">Fill Color</Label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={element.style.fill ?? "#ffffff"}
-                      onChange={(e) =>
-                        onElementChange({ style: { ...element.style, fill: e.target.value } })
-                      }
-                      className="h-8 w-12 cursor-pointer rounded border"
-                    />
-                    <Input
-                      value={element.style.fill ?? "#ffffff"}
-                      onChange={(e) =>
-                        onElementChange({ style: { ...element.style, fill: e.target.value } })
-                      }
-                      className="h-8 flex-1"
-                    />
-                  </div>
+                  <ColorPicker
+                    value={element.style.fill ?? "#ffffff"}
+                    onChange={(value) =>
+                      onElementChange({ style: { ...element.style, fill: value } })
+                    }
+                  />
                 </div>
               )}
 
               <div className="space-y-2">
                 <Label className="text-xs">Stroke Color</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={element.style.stroke ?? "#000000"}
-                    onChange={(e) =>
-                      onElementChange({ style: { ...element.style, stroke: e.target.value } })
-                    }
-                    className="h-8 w-12 cursor-pointer rounded border"
-                  />
-                  <Input
-                    value={element.style.stroke ?? "#000000"}
-                    onChange={(e) =>
-                      onElementChange({ style: { ...element.style, stroke: e.target.value } })
-                    }
-                    className="h-8 flex-1"
-                  />
-                </div>
+                <ColorPicker
+                  value={element.style.stroke ?? "#000000"}
+                  onChange={(value) =>
+                    onElementChange({ style: { ...element.style, stroke: value } })
+                  }
+                />
               </div>
 
               <div className="space-y-2">
@@ -728,23 +656,12 @@ export function ElementEditor({ element, onElementChange, unit }: ElementEditorP
 
               <div className="space-y-2">
                 <Label className="text-xs">Color</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={element.style.color ?? "#000000"}
-                    onChange={(e) =>
-                      onElementChange({ style: { ...element.style, color: e.target.value } })
-                    }
-                    className="h-8 w-12 cursor-pointer rounded border"
-                  />
-                  <Input
-                    value={element.style.color ?? "#000000"}
-                    onChange={(e) =>
-                      onElementChange({ style: { ...element.style, color: e.target.value } })
-                    }
-                    className="h-8 flex-1"
-                  />
-                </div>
+                <ColorPicker
+                  value={element.style.color ?? "#000000"}
+                  onChange={(value) =>
+                    onElementChange({ style: { ...element.style, color: value } })
+                  }
+                />
               </div>
             </div>
           </>

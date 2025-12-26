@@ -200,44 +200,26 @@ const server = serve({
     },
 
     "/api/templates/:id": {
-      GET: (req: Request, params: { id: string }) => handleGetTemplate(req, params.id),
-      PUT: (req: Request, params: { id: string }) => withCsrfProtection((r) => handleUpdateTemplate(r, params.id))(req),
-      DELETE: (req: Request, params: { id: string }) => withCsrfProtection((r) => handleDeleteTemplate(r, params.id))(req),
+      GET: handleGetTemplate,
+      PUT: withCsrfProtection(handleUpdateTemplate),
+      DELETE: withCsrfProtection(handleDeleteTemplate),
     },
 
     "/api/templates/:id/publish": {
-      POST: (req: Request, params: { id: string }) => withCsrfProtection((r) => handlePublishTemplate(r, params.id))(req),
-      DELETE: (req: Request, params: { id: string }) => withCsrfProtection((r) => handleUnpublishTemplate(r, params.id))(req),
+      POST: withCsrfProtection(handlePublishTemplate),
+      DELETE: withCsrfProtection(handleUnpublishTemplate),
     },
 
     "/api/templates/:id/duplicate": {
-      POST: (req: Request, params: { id: string }) => withCsrfProtection((r) => handleDuplicateTemplate(r, params.id))(req),
+      POST: withCsrfProtection(handleDuplicateTemplate),
     },
 
     "/api/templates/:id/versions/:version": {
-      GET: async (req: Request) => {
-        const url = new URL(req.url);
-        const segments = url.pathname.split('/');
-        const id = segments[3];
-        const version = segments[5];
-        if (!id || !version) {
-          return Response.json({ error: "Invalid route parameters" }, { status: 400 });
-        }
-        return handleGetTemplateVersion(req, { id, version });
-      },
+      GET: handleGetTemplateVersion,
     },
 
     "/api/templates/:id/versions/:version/revert": {
-      POST: async (req: Request) => {
-        const url = new URL(req.url);
-        const segments = url.pathname.split('/');
-        const id = segments[3];
-        const version = segments[5];
-        if (!id || !version) {
-          return Response.json({ error: "Invalid route parameters" }, { status: 400 });
-        }
-        return withCsrfProtection((r) => handleRevertToVersion(r, { id, version }))(req);
-      },
+      POST: withCsrfProtection(handleRevertToVersion),
     },
 
     "/api/print/jobs": {
@@ -246,17 +228,16 @@ const server = serve({
     },
 
     "/api/print/jobs/:id": {
-      GET: (req: Request, params: { id: string }) => handleGetPrintJob(req, params.id),
-      DELETE: (req: Request, params: { id: string }) => withCsrfProtection((r) => handleCancelPrintJob(r, params.id))(req),
+      GET: handleGetPrintJob,
+      DELETE: withCsrfProtection(handleCancelPrintJob),
     },
 
     "/api/print/jobs/:id/items": {
-      GET: (req: Request, params: { id: string }) => handleGetPrintJobItems(req, params.id),
+      GET: handleGetPrintJobItems,
     },
 
     "/api/print/jobs/:id/pdf": {
-      GET: (req: Request, params: { id: string }) =>
-        withRateLimit(PRINT_RENDER_RATE_LIMIT, () => handleRenderPrintJob(req, params.id))(req),
+      GET: withRateLimit(PRINT_RENDER_RATE_LIMIT, handleRenderPrintJob),
     },
 
     "/api/print/preview": {

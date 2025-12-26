@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Printer, FileText, Download, X, Loader2, AlertCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -229,13 +230,15 @@ export function PrintDialog({
                         className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs"
                       >
                         {asset?.assetTag ?? id.slice(0, 8)}
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="icon"
                           onClick={() => setAssetIds((prev) => prev.filter((i) => i !== id))}
-                          className="hover:text-destructive"
+                          className="h-4 w-4 p-0 hover:text-destructive hover:bg-transparent"
                         >
                           <X className="size-3" />
-                        </button>
+                        </Button>
                       </span>
                     );
                   })}
@@ -251,14 +254,12 @@ export function PrintDialog({
 
           {formatInfo && formatInfo.labelsPerSheet > 1 && (
             <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
+              <Checkbox
                 id="sheetLayout"
                 checked={useSheetLayout}
-                onChange={(e) => setUseSheetLayout(e.target.checked)}
-                className="size-4 rounded border-input"
+                onCheckedChange={(checked) => setUseSheetLayout(checked === true)}
               />
-              <Label htmlFor="sheetLayout" className="text-sm font-normal">
+              <Label htmlFor="sheetLayout" className="text-sm font-normal cursor-pointer">
                 Use sheet layout ({formatInfo.labelsPerSheet} labels per sheet)
               </Label>
             </div>

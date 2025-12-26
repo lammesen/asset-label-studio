@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { Loader2, Printer, Building2, Mail, Lock, AlertCircle, ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
@@ -75,7 +76,6 @@ export function LoginForm() {
 
   function handleInputChange(field: keyof FormData, value: string) {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
@@ -85,135 +85,127 @@ export function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="h-12 w-12 rounded-lg bg-primary flex items-center justify-center">
-              <svg
-                className="h-6 w-6 text-primary-foreground"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                />
-              </svg>
-            </div>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background relative overflow-hidden">
+      {/* Background Decor */}
+      <div className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background to-background" />
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+
+      <div className="w-full max-w-md p-4 z-10 animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-700">
+        <div className="mb-8 text-center space-y-2">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-primary/10 text-primary mb-4 ring-1 ring-primary/20 shadow-lg shadow-primary/5">
+            <Printer className="h-6 w-6" />
           </div>
-          <CardTitle className="text-2xl font-bold">Asset Label Studio</CardTitle>
-          <CardDescription>Sign in to your organization account</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {apiError && (
-              <div role="alert" className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
-                {apiError}
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            Asset Label Studio
+          </h1>
+          <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+            Enterprise asset management and label printing system
+          </p>
+        </div>
+
+        <Card className="border-border/60 bg-card/60 backdrop-blur-xl shadow-xl shadow-primary/5">
+          <CardHeader className="space-y-1 pb-6">
+            <CardTitle className="text-xl">Sign in</CardTitle>
+            <CardDescription>
+              Enter your organization details to continue
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {apiError && (
+                <div role="alert" className="flex items-start gap-3 p-3 text-sm text-destructive bg-destructive/5 border border-destructive/10 rounded-md">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <p>{apiError}</p>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="tenantSlug">Organization ID</Label>
+                <div className="relative group">
+                  <Building2 className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
+                  <Input
+                    id="tenantSlug"
+                    type="text"
+                    placeholder="acme-inc"
+                    value={formData.tenantSlug}
+                    onChange={(e) => handleInputChange("tenantSlug", e.target.value)}
+                    className={cn("pl-9 transition-shadow focus:ring-primary/20", errors.tenantSlug && "border-destructive focus-visible:ring-destructive")}
+                    disabled={isLoading}
+                    autoComplete="organization"
+                  />
+                </div>
+                {errors.tenantSlug && (
+                  <p className="text-xs text-destructive font-medium animate-in fade-in slide-in-from-top-1">{errors.tenantSlug}</p>
+                )}
               </div>
-            )}
 
-            <div className="space-y-2">
-              <Label htmlFor="tenantSlug">
-                Organization <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="tenantSlug"
-                type="text"
-                placeholder="your-organization"
-                value={formData.tenantSlug}
-                onChange={(e) => handleInputChange("tenantSlug", e.target.value)}
-                className={cn(errors.tenantSlug && "border-red-500 focus-visible:ring-red-500")}
-                disabled={isLoading}
-                autoComplete="organization"
-                aria-invalid={Boolean(errors.tenantSlug)}
-                aria-describedby={errors.tenantSlug ? "tenantSlug-error" : undefined}
-              />
-              {errors.tenantSlug && (
-                <p id="tenantSlug-error" className="text-sm text-red-500">{errors.tenantSlug}</p>
-              )}
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email address</Label>
+                <div className="relative group">
+                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="name@company.com"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange("email", e.target.value)}
+                    className={cn("pl-9 transition-shadow focus:ring-primary/20", errors.email && "border-destructive focus-visible:ring-destructive")}
+                    disabled={isLoading}
+                    autoComplete="email"
+                  />
+                </div>
+                {errors.email && <p className="text-xs text-destructive font-medium animate-in fade-in slide-in-from-top-1">{errors.email}</p>}
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">
-                Email <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={formData.email}
-                onChange={(e) => handleInputChange("email", e.target.value)}
-                className={cn(errors.email && "border-red-500 focus-visible:ring-red-500")}
-                disabled={isLoading}
-                autoComplete="email"
-                aria-invalid={Boolean(errors.email)}
-                aria-describedby={errors.email ? "email-error" : undefined}
-              />
-              {errors.email && <p id="email-error" className="text-sm text-red-500">{errors.email}</p>}
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative group">
+                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={formData.password}
+                    onChange={(e) => handleInputChange("password", e.target.value)}
+                    className={cn("pl-9 transition-shadow focus:ring-primary/20", errors.password && "border-destructive focus-visible:ring-destructive")}
+                    disabled={isLoading}
+                    autoComplete="current-password"
+                  />
+                </div>
+                {errors.password && (
+                  <p className="text-xs text-destructive font-medium animate-in fade-in slide-in-from-top-1">{errors.password}</p>
+                )}
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">
-                Password <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={formData.password}
-                onChange={(e) => handleInputChange("password", e.target.value)}
-                className={cn(errors.password && "border-red-500 focus-visible:ring-red-500")}
-                disabled={isLoading}
-                autoComplete="current-password"
-                aria-invalid={Boolean(errors.password)}
-                aria-describedby={errors.password ? "password-error" : undefined}
-              />
-              {errors.password && (
-                <p id="password-error" className="text-sm text-red-500">{errors.password}</p>
-              )}
-            </div>
-
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
-                <span className="flex items-center gap-2">
-                  <svg
-                    className="animate-spin h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  Signing in...
-                </span>
-              ) : (
-                "Sign in"
-              )}
-            </Button>
-
-            <p className="text-center text-sm text-muted-foreground">
-              Contact your administrator if you need access
+              <Button type="submit" className="w-full gap-2" disabled={isLoading} size="lg">
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Authenticating...
+                  </>
+                ) : (
+                  <>
+                    Sign In
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </form>
+          </CardContent>
+          <CardFooter>
+            <p className="w-full text-center text-xs text-muted-foreground">
+              Need access? Contact your system administrator.
             </p>
-          </form>
-        </CardContent>
-      </Card>
+          </CardFooter>
+        </Card>
+      </div>
+      
+      <div className="absolute bottom-6 text-center">
+        <p className="text-xs text-muted-foreground/50">
+          © 2025 Asset Label Studio. Secure Enterprise Access.
+        </p>
+      </div>
     </div>
   );
 }

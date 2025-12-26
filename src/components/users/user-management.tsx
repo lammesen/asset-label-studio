@@ -1,7 +1,18 @@
 import { useEffect, useState, useCallback } from "react";
+import {
+  AlertCircle,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  UserX,
+  Users,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -222,18 +233,11 @@ export function UserManagement() {
   if (error && users.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="rounded-full bg-red-100 p-3 mb-4">
-          <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
+        <div className="rounded-full bg-destructive/10 p-3 mb-4">
+          <AlertCircle className="h-6 w-6 text-destructive" />
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Failed to load users</h3>
-        <p className="text-sm text-gray-500 mb-4">{error}</p>
+        <h3 className="text-lg font-medium text-foreground mb-2">Failed to load users</h3>
+        <p className="text-sm text-muted-foreground mb-4">{error}</p>
         <Button onClick={fetchUsers}>Try again</Button>
       </div>
     );
@@ -244,20 +248,7 @@ export function UserManagement() {
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
           <div className="relative w-full sm:w-64">
-            <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search users..."
               value={search}
@@ -305,39 +296,27 @@ export function UserManagement() {
         </div>
 
         <Button onClick={openCreateDialog} className="w-full sm:w-auto">
-          <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
+          <Plus className="h-4 w-4 mr-2" />
           Add User
         </Button>
       </div>
 
-      <div className="bg-white rounded-lg border">
+      <div className="bg-card rounded-lg border border-border">
         {isLoading && users.length === 0 ? (
           <div className="flex items-center justify-center py-12">
-            <svg className="animate-spin h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
-            </svg>
+            <Loader2 className="animate-spin h-8 w-8 text-muted-foreground" />
           </div>
         ) : users.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="rounded-full bg-gray-100 p-3 mb-4">
-              <svg className="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                />
-              </svg>
+            <div className="rounded-full bg-muted p-3 mb-4">
+              {search || roleFilter !== "all" || activeFilter !== "all" ? (
+                <UserX className="h-6 w-6 text-muted-foreground" />
+              ) : (
+                <Users className="h-6 w-6 text-muted-foreground" />
+              )}
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No users found</h3>
-            <p className="text-sm text-gray-500 mb-4">
+            <h3 className="text-lg font-medium text-foreground mb-2">No users found</h3>
+            <p className="text-sm text-muted-foreground mb-4">
               {search || roleFilter !== "all" || activeFilter !== "all"
                 ? "Try adjusting your search or filters"
                 : "Get started by adding your first user"}
@@ -362,7 +341,7 @@ export function UserManagement() {
                     <TableCell className="font-medium">
                       {user.name}
                       {user.id === currentUser?.id && (
-                        <span className="ml-2 text-xs text-gray-500">(you)</span>
+                        <span className="ml-2 text-xs text-muted-foreground">(you)</span>
                       )}
                     </TableCell>
                     <TableCell>{user.email}</TableCell>
@@ -382,33 +361,19 @@ export function UserManagement() {
                         <span className="text-sm">{user.isActive ? "Active" : "Inactive"}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell text-gray-500">
+                    <TableCell className="hidden md:table-cell text-muted-foreground">
                       {formatDate(user.lastLoginAt)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
                         {canEditUser(user) && (
                           <Button variant="ghost" size="sm" onClick={() => openEditDialog(user)} aria-label={`Edit ${user.name}`}>
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                              />
-                            </svg>
+                            <Pencil className="h-4 w-4" />
                           </Button>
                         )}
                         {canDeleteUser(user) && (
                           <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmUser(user)} aria-label={`Delete ${user.name}`}>
-                            <svg className="h-4 w-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
+                            <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         )}
                       </div>
@@ -419,8 +384,8 @@ export function UserManagement() {
             </Table>
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t">
-                <div className="text-sm text-gray-500">
+              <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+                <div className="text-sm text-muted-foreground">
                   Showing {(page - 1) * PAGE_SIZE + 1} to {Math.min(page * PAGE_SIZE, total)} of {total} users
                 </div>
                 <div className="flex items-center gap-2">
@@ -432,7 +397,7 @@ export function UserManagement() {
                   >
                     Previous
                   </Button>
-                  <span className="text-sm text-gray-500">
+                  <span className="text-sm text-muted-foreground">
                     Page {page} of {totalPages}
                   </span>
                   <Button
@@ -463,57 +428,57 @@ export function UserManagement() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+              <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
                 {error}
               </div>
             )}
 
             <div className="space-y-2">
               <Label htmlFor="name">
-                Name <span className="text-red-500">*</span>
+                Name <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-                className={cn(formErrors.name && "border-red-500")}
+                className={cn(formErrors.name && "border-destructive")}
               />
-              {formErrors.name && <p className="text-sm text-red-500">{formErrors.name}</p>}
+              {formErrors.name && <p className="text-sm text-destructive">{formErrors.name}</p>}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="email">
-                Email <span className="text-red-500">*</span>
+                Email <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
-                className={cn(formErrors.email && "border-red-500")}
+                className={cn(formErrors.email && "border-destructive")}
               />
-              {formErrors.email && <p className="text-sm text-red-500">{formErrors.email}</p>}
+              {formErrors.email && <p className="text-sm text-destructive">{formErrors.email}</p>}
             </div>
 
             {!editingUser && (
               <div className="space-y-2">
                 <Label htmlFor="password">
-                  Password <span className="text-red-500">*</span>
+                  Password <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="password"
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
-                  className={cn(formErrors.password && "border-red-500")}
+                  className={cn(formErrors.password && "border-destructive")}
                 />
-                {formErrors.password && <p className="text-sm text-red-500">{formErrors.password}</p>}
+                {formErrors.password && <p className="text-sm text-destructive">{formErrors.password}</p>}
               </div>
             )}
 
             <div className="space-y-2">
               <Label htmlFor="role">
-                Role <span className="text-red-500">*</span>
+                Role <span className="text-destructive">*</span>
               </Label>
               <Select
                 value={formData.role}
@@ -532,21 +497,19 @@ export function UserManagement() {
                 </SelectContent>
               </Select>
               {editingUser?.id === currentUser?.id && (
-                <p className="text-sm text-gray-500">You cannot change your own role</p>
+                <p className="text-sm text-muted-foreground">You cannot change your own role</p>
               )}
             </div>
 
             {editingUser && (
               <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
+                <Checkbox
                   id="isActive"
                   checked={formData.isActive}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))}
+                  onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, isActive: checked === true }))}
                   disabled={editingUser?.id === currentUser?.id}
-                  className="h-4 w-4 rounded border-gray-300"
                 />
-                <Label htmlFor="isActive" className="font-normal">
+                <Label htmlFor="isActive" className="font-normal cursor-pointer">
                   User is active
                 </Label>
               </div>

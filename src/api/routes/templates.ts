@@ -75,189 +75,229 @@ export const handleCreateTemplate = withAuth(
   })
 );
 
-export function handleGetTemplate(req: Request, id: string): Response | Promise<Response> {
-  return withAuth(
-    requirePermission(PERMISSIONS.TEMPLATE_READ, async (r, ctx) => {
-      const url = new URL(r.url);
-      const includeHistory = url.searchParams.get("history") === "true";
+export const handleGetTemplate = withAuth(
+  requirePermission(PERMISSIONS.TEMPLATE_READ, async (req, ctx) => {
+    const url = new URL(req.url);
+    const id = url.pathname.split("/").pop();
 
-      if (includeHistory) {
-        const template = await getTemplateWithHistory(ctx, id);
-        if (!template) {
-          return Response.json({ error: "Template not found" }, { status: 404 });
-        }
-        return Response.json({ template });
+    if (!id) {
+      return Response.json({ error: "Template ID required" }, { status: 400 });
+    }
+
+    const includeHistory = url.searchParams.get("history") === "true";
+
+    if (includeHistory) {
+      const template = await getTemplateWithHistory(ctx, id);
+      if (!template) {
+        return Response.json({ error: "Template not found" }, { status: 404 });
       }
+      return Response.json({ template });
+    }
 
-      const template = await getTemplateById(ctx, id);
+    const template = await getTemplateById(ctx, id);
+    if (!template) {
+      return Response.json({ error: "Template not found" }, { status: 404 });
+    }
+
+    return Response.json({ template });
+  })
+);
+
+export const handleUpdateTemplate = withAuth(
+  requirePermission(PERMISSIONS.TEMPLATE_WRITE, async (req, ctx) => {
+    const url = new URL(req.url);
+    const id = url.pathname.split("/").pop();
+
+    if (!id) {
+      return Response.json({ error: "Template ID required" }, { status: 400 });
+    }
+
+    const body = await req.json();
+    
+    const parseResult = updateTemplateSchema.safeParse(body);
+    if (!parseResult.success) {
+      return Response.json(
+        { error: "Invalid input", details: parseResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    try {
+      const template = await updateTemplate(ctx, id, {
+        name: parseResult.data.name,
+        description: parseResult.data.description ?? undefined,
+        category: (parseResult.data.category ?? undefined) as EquipmentCategory | undefined,
+        format: parseResult.data.format as LabelFormatId | undefined,
+        spec: parseResult.data.spec as LabelSpec | undefined,
+        changeNote: parseResult.data.changeNote,
+      });
+
       if (!template) {
         return Response.json({ error: "Template not found" }, { status: 404 });
       }
 
       return Response.json({ template });
-    })
-  )(req);
-}
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("system template")) {
+        return Response.json({ error: error.message }, { status: 403 });
+      }
+      throw error;
+    }
+  })
+);
 
-export function handleUpdateTemplate(req: Request, id: string): Response | Promise<Response> {
-  return withAuth(
-    requirePermission(PERMISSIONS.TEMPLATE_WRITE, async (r, ctx) => {
-      const body = await r.json();
-      
-      const parseResult = updateTemplateSchema.safeParse(body);
-      if (!parseResult.success) {
-        return Response.json(
-          { error: "Invalid input", details: parseResult.error.flatten() },
-          { status: 400 }
-        );
+export const handleDeleteTemplate = withAuth(
+  requirePermission(PERMISSIONS.TEMPLATE_WRITE, async (req, ctx) => {
+    const url = new URL(req.url);
+    const id = url.pathname.split("/").pop();
+
+    if (!id) {
+      return Response.json({ error: "Template ID required" }, { status: 400 });
+    }
+
+    try {
+      const success = await deleteTemplate(ctx, id);
+      if (!success) {
+        return Response.json({ error: "Template not found" }, { status: 404 });
       }
 
-      try {
-        const template = await updateTemplate(ctx, id, {
-          name: parseResult.data.name,
-          description: parseResult.data.description ?? undefined,
-          category: (parseResult.data.category ?? undefined) as EquipmentCategory | undefined,
-          format: parseResult.data.format as LabelFormatId | undefined,
-          spec: parseResult.data.spec as LabelSpec | undefined,
-          changeNote: parseResult.data.changeNote,
-        });
-
-        if (!template) {
-          return Response.json({ error: "Template not found" }, { status: 404 });
-        }
-
-        return Response.json({ template });
-      } catch (error) {
-        if (error instanceof Error && error.message.includes("system template")) {
-          return Response.json({ error: error.message }, { status: 403 });
-        }
-        throw error;
+      return Response.json({ success: true });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("system template")) {
+        return Response.json({ error: error.message }, { status: 403 });
       }
-    })
-  )(req);
-}
+      throw error;
+    }
+  })
+);
 
-export function handleDeleteTemplate(req: Request, id: string): Response | Promise<Response> {
-  return withAuth(
-    requirePermission(PERMISSIONS.TEMPLATE_WRITE, async (_req, ctx) => {
-      try {
-        const success = await deleteTemplate(ctx, id);
-        if (!success) {
-          return Response.json({ error: "Template not found" }, { status: 404 });
-        }
+export const handlePublishTemplate = withAuth(
+  requirePermission(PERMISSIONS.TEMPLATE_PUBLISH, async (req, ctx) => {
+    const url = new URL(req.url);
+    const segments = url.pathname.split("/");
+    const id = segments[3];
 
-        return Response.json({ success: true });
-      } catch (error) {
-        if (error instanceof Error && error.message.includes("system template")) {
-          return Response.json({ error: error.message }, { status: 403 });
-        }
-        throw error;
-      }
-    })
-  )(req);
-}
+    if (!id) {
+      return Response.json({ error: "Template ID required" }, { status: 400 });
+    }
 
-export function handlePublishTemplate(req: Request, id: string): Response | Promise<Response> {
-  return withAuth(
-    requirePermission(PERMISSIONS.TEMPLATE_PUBLISH, async (r, ctx) => {
-      const body = await r.json().catch(() => ({}));
-      const changeNote = typeof body.changeNote === "string" ? body.changeNote : undefined;
+    const body = await req.json().catch(() => ({}));
+    const changeNote = typeof body.changeNote === "string" ? body.changeNote : undefined;
 
-      const template = await publishTemplate(ctx, id, changeNote);
+    const template = await publishTemplate(ctx, id, changeNote);
+    if (!template) {
+      return Response.json({ error: "Template not found" }, { status: 404 });
+    }
+
+    return Response.json({ template });
+  })
+);
+
+export const handleUnpublishTemplate = withAuth(
+  requirePermission(PERMISSIONS.TEMPLATE_PUBLISH, async (req, ctx) => {
+    const url = new URL(req.url);
+    const segments = url.pathname.split("/");
+    const id = segments[3];
+
+    if (!id) {
+      return Response.json({ error: "Template ID required" }, { status: 400 });
+    }
+
+    try {
+      const template = await unpublishTemplate(ctx, id);
       if (!template) {
         return Response.json({ error: "Template not found" }, { status: 404 });
       }
 
       return Response.json({ template });
-    })
-  )(req);
-}
-
-export function handleUnpublishTemplate(req: Request, id: string): Response | Promise<Response> {
-  return withAuth(
-    requirePermission(PERMISSIONS.TEMPLATE_PUBLISH, async (_req, ctx) => {
-      try {
-        const template = await unpublishTemplate(ctx, id);
-        if (!template) {
-          return Response.json({ error: "Template not found" }, { status: 404 });
-        }
-
-        return Response.json({ template });
-      } catch (error) {
-        if (error instanceof Error && error.message.includes("system template")) {
-          return Response.json({ error: error.message }, { status: 403 });
-        }
-        throw error;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("system template")) {
+        return Response.json({ error: error.message }, { status: 403 });
       }
-    })
-  )(req);
-}
+      throw error;
+    }
+  })
+);
 
-export function handleDuplicateTemplate(req: Request, id: string): Response | Promise<Response> {
-  return withAuth(
-    requirePermission(PERMISSIONS.TEMPLATE_WRITE, async (r, ctx) => {
-      const body = await r.json();
-      const newName = typeof body.name === "string" ? body.name : null;
+export const handleDuplicateTemplate = withAuth(
+  requirePermission(PERMISSIONS.TEMPLATE_WRITE, async (req, ctx) => {
+    const url = new URL(req.url);
+    const segments = url.pathname.split("/");
+    const id = segments[3];
 
-      if (!newName) {
-        return Response.json({ error: "Name is required" }, { status: 400 });
-      }
+    if (!id) {
+      return Response.json({ error: "Template ID required" }, { status: 400 });
+    }
 
-      const template = await duplicateTemplate(ctx, id, newName);
+    const body = await req.json();
+    const newName = typeof body.name === "string" ? body.name : null;
+
+    if (!newName) {
+      return Response.json({ error: "Name is required" }, { status: 400 });
+    }
+
+    const template = await duplicateTemplate(ctx, id, newName);
+    if (!template) {
+      return Response.json({ error: "Template not found" }, { status: 404 });
+    }
+
+    return Response.json({ template }, { status: 201 });
+  })
+);
+
+export const handleGetTemplateVersion = withAuth(
+  requirePermission(PERMISSIONS.TEMPLATE_READ, async (req, ctx) => {
+    const url = new URL(req.url);
+    const segments = url.pathname.split("/");
+    const id = segments[3];
+    const version = segments[5];
+
+    if (!id || !version) {
+      return Response.json({ error: "Invalid route parameters" }, { status: 400 });
+    }
+
+    const versionNum = parseInt(version, 10);
+    if (isNaN(versionNum) || versionNum < 1) {
+      return Response.json({ error: "Invalid version number" }, { status: 400 });
+    }
+
+    const templateVersion = await getTemplateVersion(ctx, id, versionNum);
+    if (!templateVersion) {
+      return Response.json({ error: "Version not found" }, { status: 404 });
+    }
+
+    return Response.json({ version: templateVersion });
+  })
+);
+
+export const handleRevertToVersion = withAuth(
+  requirePermission(PERMISSIONS.TEMPLATE_WRITE, async (req, ctx) => {
+    const url = new URL(req.url);
+    const segments = url.pathname.split("/");
+    const id = segments[3];
+    const version = segments[5];
+
+    if (!id || !version) {
+      return Response.json({ error: "Invalid route parameters" }, { status: 400 });
+    }
+
+    const versionNum = parseInt(version, 10);
+    if (isNaN(versionNum) || versionNum < 1) {
+      return Response.json({ error: "Invalid version number" }, { status: 400 });
+    }
+
+    try {
+      const template = await revertToVersion(ctx, id, versionNum);
       if (!template) {
-        return Response.json({ error: "Template not found" }, { status: 404 });
+        return Response.json({ error: "Template or version not found" }, { status: 404 });
       }
 
-      return Response.json({ template }, { status: 201 });
-    })
-  )(req);
-}
-
-export function handleGetTemplateVersion(
-  req: Request,
-  params: { id: string; version: string }
-): Response | Promise<Response> {
-  return withAuth(
-    requirePermission(PERMISSIONS.TEMPLATE_READ, async (_req, ctx) => {
-      const versionNum = parseInt(params.version, 10);
-      if (isNaN(versionNum) || versionNum < 1) {
-        return Response.json({ error: "Invalid version number" }, { status: 400 });
+      return Response.json({ template });
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("system template")) {
+        return Response.json({ error: error.message }, { status: 403 });
       }
-
-      const templateVersion = await getTemplateVersion(ctx, params.id, versionNum);
-      if (!templateVersion) {
-        return Response.json({ error: "Version not found" }, { status: 404 });
-      }
-
-      return Response.json({ version: templateVersion });
-    })
-  )(req);
-}
-
-export function handleRevertToVersion(
-  req: Request,
-  params: { id: string; version: string }
-): Response | Promise<Response> {
-  return withAuth(
-    requirePermission(PERMISSIONS.TEMPLATE_WRITE, async (_req, ctx) => {
-      const versionNum = parseInt(params.version, 10);
-      if (isNaN(versionNum) || versionNum < 1) {
-        return Response.json({ error: "Invalid version number" }, { status: 400 });
-      }
-
-      try {
-        const template = await revertToVersion(ctx, params.id, versionNum);
-        if (!template) {
-          return Response.json({ error: "Template or version not found" }, { status: 404 });
-        }
-
-        return Response.json({ template });
-      } catch (error) {
-        if (error instanceof Error && error.message.includes("system template")) {
-          return Response.json({ error: error.message }, { status: 403 });
-        }
-        throw error;
-      }
-    })
-  )(req);
-}
+      throw error;
+    }
+  })
+);

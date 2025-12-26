@@ -118,80 +118,102 @@ export const handleCreatePrintJob = withAuth(
   })
 );
 
-export function handleGetPrintJob(req: Request, id: string): Response | Promise<Response> {
-  return withAuth(
-    requirePermission(PERMISSIONS.PRINT_EXECUTE, async (_req, ctx) => {
-      const job = await getPrintJob(ctx, id);
+export const handleGetPrintJob = withAuth(
+  requirePermission(PERMISSIONS.PRINT_EXECUTE, async (req, ctx) => {
+    const url = new URL(req.url);
+    const id = url.pathname.split("/").pop();
+
+    if (!id) {
+      return Response.json({ error: "Print job ID required" }, { status: 400 });
+    }
+
+    const job = await getPrintJob(ctx, id);
+    if (!job) {
+      return Response.json({ error: "Print job not found" }, { status: 404 });
+    }
+
+    return Response.json({ job });
+  })
+);
+
+export const handleGetPrintJobItems = withAuth(
+  requirePermission(PERMISSIONS.PRINT_EXECUTE, async (req, ctx) => {
+    const url = new URL(req.url);
+    const segments = url.pathname.split("/");
+    const id = segments[4];
+
+    if (!id) {
+      return Response.json({ error: "Print job ID required" }, { status: 400 });
+    }
+
+    try {
+      const items = await getPrintJobItems(ctx, id);
+      return Response.json({ items });
+    } catch (error) {
+      if (error instanceof Error && error.message === "Print job not found") {
+        return Response.json({ error: error.message }, { status: 404 });
+      }
+      throw error;
+    }
+  })
+);
+
+export const handleRenderPrintJob = withAuth(
+  requirePermission(PERMISSIONS.PRINT_EXECUTE, async (req, ctx) => {
+    const url = new URL(req.url);
+    const segments = url.pathname.split("/");
+    const id = segments[4];
+
+    if (!id) {
+      return Response.json({ error: "Print job ID required" }, { status: 400 });
+    }
+
+    try {
+      const result = await renderPrintJob(ctx, id);
+
+      return new Response(new Uint8Array(result.buffer), {
+        status: 200,
+        headers: {
+          "Content-Type": result.mimeType,
+          "Content-Disposition": `attachment; filename="${result.filename}"`,
+          "Content-Length": String(result.buffer.length),
+        },
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === "Print job not found" || error.message === "Template not found") {
+          return Response.json({ error: error.message }, { status: 404 });
+        }
+      }
+      throw error;
+    }
+  })
+);
+
+export const handleCancelPrintJob = withAuth(
+  requirePermission(PERMISSIONS.PRINT_EXECUTE, async (req, ctx) => {
+    const url = new URL(req.url);
+    const id = url.pathname.split("/").pop();
+
+    if (!id) {
+      return Response.json({ error: "Print job ID required" }, { status: 400 });
+    }
+
+    try {
+      const job = await cancelPrintJob(ctx, id);
       if (!job) {
         return Response.json({ error: "Print job not found" }, { status: 404 });
       }
 
       return Response.json({ job });
-    })
-  )(req);
-}
-
-export function handleGetPrintJobItems(req: Request, id: string): Response | Promise<Response> {
-  return withAuth(
-    requirePermission(PERMISSIONS.PRINT_EXECUTE, async (_req, ctx) => {
-      try {
-        const items = await getPrintJobItems(ctx, id);
-        return Response.json({ items });
-      } catch (error) {
-        if (error instanceof Error && error.message === "Print job not found") {
-          return Response.json({ error: error.message }, { status: 404 });
-        }
-        throw error;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("Cannot cancel")) {
+        return Response.json({ error: error.message }, { status: 400 });
       }
-    })
-  )(req);
-}
-
-export function handleRenderPrintJob(req: Request, id: string): Response | Promise<Response> {
-  return withAuth(
-    requirePermission(PERMISSIONS.PRINT_EXECUTE, async (_req, ctx) => {
-      try {
-        const result = await renderPrintJob(ctx, id);
-
-        return new Response(new Uint8Array(result.buffer), {
-          status: 200,
-          headers: {
-            "Content-Type": result.mimeType,
-            "Content-Disposition": `attachment; filename="${result.filename}"`,
-            "Content-Length": String(result.buffer.length),
-          },
-        });
-      } catch (error) {
-        if (error instanceof Error) {
-          if (error.message === "Print job not found" || error.message === "Template not found") {
-            return Response.json({ error: error.message }, { status: 404 });
-          }
-        }
-        throw error;
-      }
-    })
-  )(req);
-}
-
-export function handleCancelPrintJob(req: Request, id: string): Response | Promise<Response> {
-  return withAuth(
-    requirePermission(PERMISSIONS.PRINT_EXECUTE, async (_req, ctx) => {
-      try {
-        const job = await cancelPrintJob(ctx, id);
-        if (!job) {
-          return Response.json({ error: "Print job not found" }, { status: 404 });
-        }
-
-        return Response.json({ job });
-      } catch (error) {
-        if (error instanceof Error && error.message.includes("Cannot cancel")) {
-          return Response.json({ error: error.message }, { status: 400 });
-        }
-        throw error;
-      }
-    })
-  )(req);
-}
+      throw error;
+    }
+  })
+);
 
 export const handlePreview = withAuth(
   requirePermission(PERMISSIONS.PRINT_EXECUTE, async (req, ctx) => {
